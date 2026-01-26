@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NoiseShaper Web</title>
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>NoiseShaper Web</h1>
+            <p class="subtitle">Professional White Noise Generation & Analysis</p>
+        </header>
+
+        <main class="app-main">
+            <!-- FFT Spectrum Section - Always Visible at Top -->
+            <section class="spectrum-section">
+                <div class="analyzer-header">
+                    <h2>Real-time FFT Analyzer</h2>
+                    <button id="analyzerConfigBtn" class="analyzer-config-btn">
+                        <span class="btn-icon">⚙️</span>
+                        <span class="btn-text">Settings</span>
+                    </button>
+                </div>
+                
+                <div id="analyzerControls" class="analyzer-controls" style="display: none;">
+                    <div class="analyzer-controls-grid">
+                        <div class="analyzer-control-group">
+                            <label class="analyzer-label">FFT Size</label>
+                            <select id="fftSizeSelect" class="analyzer-select">
+                                <option value="512">512</option>
+                                <option value="1024">1024</option>
+                                <option value="2048" selected>2048</option>
+                                <option value="4096">4096</option>
+                                <option value="8192">8192</option>
+                            </select>
+                        </div>
+                        
+                        <div class="analyzer-control-group">
+                            <label class="analyzer-label">Window</label>
+                            <select id="windowTypeSelect" class="analyzer-select">
+                                <option value="hann" selected>Hann</option>
+                                <option value="hamming">Hamming</option>
+                                <option value="blackman">Blackman</option>
+                                <option value="rectangle">Rectangle</option>
+                            </select>
+                        </div>
+                        
+                        <div class="analyzer-control-group">
+                            <label class="analyzer-label">Scale</label>
+                            <select id="scaleTypeSelect" class="analyzer-select">
+                                <option value="logarithmic" selected>Logarithmic</option>
+                                <option value="linear">Linear</option>
+                            </select>
+                        </div>
+                        
+                        <div class="analyzer-control-group">
+                            <label class="analyzer-label">Averaging</label>
+                            <input type="range" id="averagingSlider" class="analyzer-slider" 
+                                   min="1" max="10" step="1" value="1">
+                            <span id="averagingValue" class="analyzer-value">1</span>
+                        </div>
+                        
+                        <div class="analyzer-control-group">
+                            <label class="analyzer-label">Smoothing</label>
+                            <input type="range" id="smoothingSlider" class="analyzer-slider" 
+                                   min="0" max="0.95" step="0.05" value="0.8">
+                            <span id="smoothingValue" class="analyzer-value">0.8</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="spectrum-container">
+                    <canvas id="spectrumCanvas" class="spectrum-canvas"></canvas>
+                </div>
+            </section>
+
+            <!-- Control Bar - Audio Controls, Master Volume, Export -->
+            <section class="control-bar">
+                <div class="audio-controls">
+                    <div class="control-group">
+                        <button id="startStopBtn" class="start-stop-btn" disabled>
+                            <span class="btn-text">Start Audio</span>
+                        </button>
+                        <div class="status-indicator">
+                            <span id="statusText" class="status-text">Initializing...</span>
+                            <div id="statusDot" class="status-dot"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="master-volume-section">
+                    <div class="control-group">
+                        <div class="master-volume-display">
+                            <span class="master-volume-label">Master Volume</span>
+                            <span id="masterVolumeValue" class="master-volume-value">20% (-14 dB)</span>
+                        </div>
+                        <input 
+                            type="range" 
+                            id="masterVolumeSlider" 
+                            class="master-volume-slider"
+                            min="0" 
+                            max="100" 
+                            value="20"
+                            step="1"
+                        >
+                    </div>
+                </div>
+
+                <div class="export-controls">
+                    <div class="control-group">
+                        <button id="exportBtn" class="export-btn" disabled>
+                            <span class="btn-text">Export...</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Split Panel Section -->
+            <section class="split-panel">
+                <!-- Track List Panel (Left) -->
+                <div class="track-list-panel">
+                    <div class="track-list-header">
+                        <h3>Multi-Track Mixer</h3>
+                        <button id="addTrackBtn" class="add-track-btn">
+                            <span class="btn-icon">+</span>
+                            <span class="btn-text">Add Track</span>
+                        </button>
+                    </div>
+                    
+                    <div id="trackList" class="track-list">
+                        <!-- Track items will be dynamically added here -->
+                    </div>
+                </div>
+
+                <!-- Filter Editor Panel (Right) -->
+                <div class="filter-editor-panel">
+                    <div class="filter-editor-header">
+                        <h3 id="filterEditorTitle">Select a Track</h3>
+                    </div>
+                    
+                    <div id="filterEditor" class="filter-editor">
+                        <div class="filter-editor-placeholder">
+                            <div class="placeholder-icon">🎛️</div>
+                            <div class="placeholder-text">Select a track to edit its filters</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <div class="error-display" id="errorDisplay" style="display: none;">
+                <div class="error-content">
+                    <span class="error-icon">⚠️</span>
+                    <span id="errorMessage">An error occurred</span>
+                    <button id="dismissError" class="dismiss-btn">×</button>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Filter Type Selection Modal -->
+    <div id="filterModal" class="filter-modal-overlay">
+        <div class="filter-modal">
+            <div class="filter-modal-header">
+                <h3 class="filter-modal-title">Select Filter Type</h3>
+                <p class="filter-modal-subtitle">Choose a filter type to add to the track</p>
+            </div>
+            
+            <div class="filter-type-grid">
+                <button class="filter-type-btn" data-filter-type="lowpass">Low Pass</button>
+                <button class="filter-type-btn" data-filter-type="highpass">High Pass</button>
+                <button class="filter-type-btn" data-filter-type="bandpass">Band Pass</button>
+                <button class="filter-type-btn" data-filter-type="notch">Notch</button>
+                <button class="filter-type-btn" data-filter-type="allpass">All Pass</button>
+                <button class="filter-type-btn" data-filter-type="peaking">Peaking</button>
+                <button class="filter-type-btn" data-filter-type="gaussian">Gaussian</button>
+                <button class="filter-type-btn" data-filter-type="parabolic">Parabolic</button>
+                <button class="filter-type-btn" data-filter-type="plateau">Plateau</button>
+            </div>
+            
+            <div class="filter-modal-actions">
+                <button class="filter-modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Dialog Modal -->
+    <div id="exportModal" class="export-modal-overlay">
+        <div class="export-modal">
+            <div class="export-modal-header">
+                <h3 class="export-modal-title">Export Audio</h3>
+                <button class="export-modal-close" id="exportModalClose">×</button>
+            </div>
+            
+            <div class="export-modal-content">
+                <!-- Audio Generation Section -->
+                <div class="export-section">
+                    <h4 class="export-section-title">Audio Generation</h4>
+                    
+                    <div class="export-control-group">
+                        <label class="export-label" for="exportDurationTime">Duration</label>
+                        <input type="text" id="exportDurationTime" class="export-time-input" 
+                               value="00H 01M 00S 000ms" placeholder="00H 01M 00S 000ms">
+                        <input type="range" id="exportDurationSlider" class="export-slider" 
+                               min="0.001" max="36000" step="0.001" value="60">
+                    </div>
+                    
+                    <div class="export-control-group">
+                        <label class="export-label" for="exportClipsInput">Audio Clips</label>
+                        <input type="number" id="exportClipsInput" class="export-number-input" 
+                               value="5" min="1" max="100" step="1">
+                        <input type="range" id="exportClipsSlider" class="export-slider" 
+                               min="1" max="100" step="1" value="5">
+                    </div>
+                    
+                    <div class="export-control-group">
+                        <label class="export-checkbox-container">
+                            <input type="checkbox" id="exportSilenceEnable" class="export-checkbox" checked>
+                            <span class="export-checkbox-label">Silence between clips</span>
+                        </label>
+                        <input type="text" id="exportSilenceTime" class="export-time-input" 
+                               value="00H 00M 10S 000ms" placeholder="00H 00M 10S 000ms">
+                        <input type="range" id="exportSilenceSlider" class="export-slider" 
+                               min="0.001" max="36000" step="0.001" value="10">
+                    </div>
+                    
+                    <div class="export-control-group">
+                        <label class="export-checkbox-container">
+                            <input type="checkbox" id="exportFinalSilence" class="export-checkbox" checked>
+                            <span class="export-checkbox-label">Include final silence</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Processing Section -->
+                <div class="export-section">
+                    <h4 class="export-section-title">Processing</h4>
+                    
+                    <div class="export-control-group">
+                        <label class="export-checkbox-container">
+                            <input type="checkbox" id="exportNormalizationEnable" class="export-checkbox" checked>
+                            <span class="export-checkbox-label">Enable Normalization</span>
+                        </label>
+                        <select id="exportNormalizationType" class="export-select">
+                            <option value="global" selected>Global (across all clips)</option>
+                            <option value="per-clip">Per-Clip (individual)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="export-control-group">
+                        <label class="export-label" for="exportNormalizationValue">Normalization Level</label>
+                        <input type="number" id="exportNormalizationValue" class="export-number-input" 
+                               value="0.5" min="0.1" max="1.0" step="0.1">
+                        <input type="range" id="exportNormalizationSlider" class="export-slider" 
+                               min="0.1" max="1.0" step="0.1" value="0.5">
+                    </div>
+                    
+                    <div class="export-fade-controls">
+                        <div class="export-fade-group">
+                            <label class="export-checkbox-container">
+                                <input type="checkbox" id="exportFadeInEnable" class="export-checkbox" checked>
+                                <span class="export-checkbox-label">Fade In</span>
+                            </label>
+                            <input type="text" id="exportFadeInTime" class="export-time-input" 
+                                   value="00H 00M 05S 000ms" placeholder="00H 00M 05S 000ms">
+                            <input type="range" id="exportFadeInSlider" class="export-slider" 
+                                   min="0.001" max="36000" step="0.001" value="5">
+                        </div>
+                        
+                        <div class="export-fade-group">
+                            <label class="export-checkbox-container">
+                                <input type="checkbox" id="exportFadeOutEnable" class="export-checkbox" checked>
+                                <span class="export-checkbox-label">Fade Out</span>
+                            </label>
+                            <input type="text" id="exportFadeOutTime" class="export-time-input" 
+                                   value="00H 00M 05S 000ms" placeholder="00H 00M 05S 000ms">
+                            <input type="range" id="exportFadeOutSlider" class="export-slider" 
+                                   min="0.001" max="36000" step="0.001" value="5">
+                        </div>
+                    </div>
+                    
+                    <div class="export-control-group">
+                        <label class="export-label" for="exportProcessOrder">Processing Order</label>
+                        <select id="exportProcessOrder" class="export-select">
+                            <option value="fade-then-normalize">Fade → Normalize</option>
+                            <option value="normalize-then-fade">Normalize → Fade</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Output Section -->
+                <div class="export-section">
+                    <h4 class="export-section-title">Output</h4>
+                    
+                    <div class="export-control-group">
+                        <label class="export-label" for="exportSampleRate">Sample Rate</label>
+                        <select id="exportSampleRate" class="export-select">
+                            <option value="44100" selected>44.1 kHz (CD Quality)</option>
+                            <option value="48000">48 kHz (Professional)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="export-format-controls">
+                        <div class="export-format-group">
+                            <label class="export-checkbox-container">
+                                <input type="checkbox" id="exportWavEnable" class="export-checkbox" checked>
+                                <span class="export-checkbox-label">Export WAV Audio</span>
+                            </label>
+                        </div>
+                        
+                        <div class="export-format-group">
+                            <label class="export-checkbox-container">
+                                <input type="checkbox" id="exportCppEnable" class="export-checkbox" checked>
+                                <span class="export-checkbox-label">Export C++ Code</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div>
+            
+            <div class="export-modal-footer">
+                <div class="export-progress" id="exportProgressContainer" style="display: none;">
+                    <div class="export-progress-bar">
+                        <div class="export-progress-fill" id="exportProgressFill"></div>
+                    </div>
+                    <span class="export-progress-text" id="exportProgressText">Preparing export...</span>
+                </div>
+                
+                <div class="export-modal-actions" id="exportModalActions">
+                    <button id="exportModalCancel" class="export-modal-cancel">Cancel</button>
+                    <button id="exportModalStart" class="export-modal-start">Export</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/audio/audioEngine.js"></script>
+    <script src="js/audio/analyzer.js"></script>
+    <script src="js/audio/filters.js"></script>
+    <script src="js/audio/advancedFilters.js"></script>
+    <script src="js/audio/directFFT.js"></script>
+    <script src="js/audio/filterChain.js"></script>
+    <script src="js/audio/track.js"></script>
+    <script src="js/audio/trackManager.js"></script>
+    <script src="js/audio/noiseGenerator.js"></script>
+    <script src="js/audio/workerPool.js"></script>
+    <script src="js/audio/simpleExporter.js"></script>
+    <script src="js/audio/exportManager.js"></script>
+    <script src="js/ui/visualization.js"></script>
+    <script src="js/ui/analyzerControls.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html> 
