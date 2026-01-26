@@ -26,6 +26,51 @@ class TrackManager {
     }
     
     /**
+     * Get the state of all tracks as a JSON-serializable object
+     * @returns {object} Tracks state
+     */
+    toJSON() {
+        return {
+            tracks: this.tracks.map(t => t.toJSON())
+        };
+    }
+
+    /**
+     * Update all tracks from a JSON state object
+     * @param {object} state - Tracks state
+     */
+    async fromJSON(state) {
+        if (!state || !Array.isArray(state.tracks)) return;
+
+        // Stop all current tracks and clean up
+        const stopPromises = this.tracks.map(track => {
+            if (track.isPlaying) {
+                track.stop();
+            }
+            track.destroy();
+            return Promise.resolve();
+        });
+        await Promise.all(stopPromises);
+        
+        this.tracks = [];
+        this.emit('tracksCleared');
+
+        // Add new tracks from JSON
+        for (const trackData of state.tracks) {
+            const track = this.addTrack();
+            await track.fromJSON(trackData);
+        }
+        
+        // If we were playing, start the new tracks (if not muted)
+        if (this.isPlaying) {
+            const startPromises = this.tracks
+                .filter(track => !track.isMuted)
+                .map(track => track.start());
+            await Promise.all(startPromises);
+        }
+    }
+
+    /**
      * Initialize the track manager (call after setting up event listeners)
      */
     async initialize() {

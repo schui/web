@@ -1714,6 +1714,159 @@ input:checked + .toggle-slider:before {
     border-color: var(--accent-blue);
 }
 
+/* JSON Config Modal */
+.json-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2100;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.json-modal-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.json-modal {
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(-20px);
+    transition: transform 0.3s ease;
+}
+
+.json-modal-overlay.show .json-modal {
+    transform: translateY(0);
+}
+
+.json-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.json-modal-title {
+    color: var(--text-primary);
+    font-size: 1.4rem;
+    font-weight: 500;
+}
+
+.json-modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.json-modal-close:hover {
+    color: var(--text-primary);
+}
+
+.json-modal-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-height: 0;
+}
+
+.json-modal-description {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.json-textarea {
+    flex: 1;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 1rem;
+    border-radius: 6px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9rem;
+    resize: none;
+    min-height: 300px;
+}
+
+.json-textarea:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.json-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.json-apply-btn, .json-cancel-btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.json-apply-btn {
+    background: var(--accent-blue);
+    border: none;
+    color: white;
+}
+
+.json-apply-btn:hover {
+    background: #3b82f6;
+    transform: translateY(-1px);
+}
+
+.json-cancel-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.json-cancel-btn:hover {
+    background: var(--bg-panel);
+    border-color: var(--accent-blue);
+}
+
+.json-config-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.6rem 1.2rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.json-config-btn:hover {
+    border-color: var(--accent-blue);
+    background: var(--bg-panel);
+}
+
 /* Master Volume Controls */
 .master-volume-section {
     margin-top: 1rem;

@@ -33,8 +33,40 @@ class Track {
     }
     
     /**
+     * Get the state of the track as a JSON-serializable object
+     * @returns {object} Track state
+     */
+    toJSON() {
+        return {
+            id: this.id,
+            currentGain: this.currentGain,
+            isMuted: this.isMuted,
+            filterChain: this.filterChain.toJSON()
+        };
+    }
+
+    /**
+     * Update the track from a JSON state object
+     * @param {object} state - Track state
+     */
+    async fromJSON(state) {
+        if (!state) return;
+
+        if (state.currentGain !== undefined) {
+            this.setGain(state.currentGain);
+        }
+
+        if (state.isMuted !== undefined) {
+            this.setMuted(state.isMuted);
+        }
+
+        if (state.filterChain) {
+            await this.filterChain.fromJSON(state.filterChain);
+        }
+    }
+
+    /**
      * Set up the audio processing chain for this track
-     * NoiseWorklet → FilterChain → GainNode → MasterGain
      */
     setupAudioChain() {
         if (!this.audioEngine.isInitialized) {

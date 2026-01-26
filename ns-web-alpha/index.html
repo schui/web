@@ -113,6 +113,9 @@
                         <button id="exportBtn" class="export-btn" disabled>
                             <span class="btn-text">Export...</span>
                         </button>
+                        <button id="jsonConfigBtn" class="json-config-btn">
+                            <span class="btn-text">JSON Config</span>
+                        </button>
                     </div>
                 </div>
             </section>
@@ -161,6 +164,24 @@
         </footer>
     </div>
 
+    <!-- JSON Config Modal -->
+    <div id="jsonModal" class="json-modal-overlay">
+        <div class="json-modal">
+            <div class="json-modal-header">
+                <h3 class="json-modal-title">JSON Configuration</h3>
+                <button class="json-modal-close" id="jsonModalClose">×</button>
+            </div>
+            <div class="json-modal-content">
+                <p class="json-modal-description">View or edit the current tracks and filter settings in JSON format.</p>
+                <textarea id="jsonTextArea" class="json-textarea" spellcheck="false"></textarea>
+            </div>
+            <div class="json-modal-actions">
+                <button id="jsonApplyBtn" class="json-apply-btn">Apply Changes</button>
+                <button id="jsonCancelBtn" class="json-cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Filter Type Selection Modal -->
     <div id="filterModal" class="filter-modal-overlay">
         <div class="filter-modal">
@@ -203,7 +224,7 @@
                     <div class="export-control-group">
                         <label class="export-label" for="exportDurationTime">Duration</label>
                         <input type="text" id="exportDurationTime" class="export-time-input" 
-                               value="00H 01M 00S 000ms" placeholder="00H 01M 00S 000ms">
+                               value="00H 00M 00S 010ms" placeholder="00H 00M 00S 010ms">
                         <input type="range" id="exportDurationSlider" class="export-slider" 
                                min="0.001" max="36000" step="0.001" value="60">
                     </div>
@@ -211,7 +232,7 @@
                     <div class="export-control-group">
                         <label class="export-label" for="exportClipsInput">Audio Clips</label>
                         <input type="number" id="exportClipsInput" class="export-number-input" 
-                               value="5" min="1" max="100" step="1">
+                               value="50" min="1" max="100" step="1">
                         <input type="range" id="exportClipsSlider" class="export-slider" 
                                min="1" max="100" step="1" value="5">
                     </div>
@@ -222,7 +243,7 @@
                             <span class="export-checkbox-label">Silence between clips</span>
                         </label>
                         <input type="text" id="exportSilenceTime" class="export-time-input" 
-                               value="00H 00M 10S 000ms" placeholder="00H 00M 10S 000ms">
+                               value="00H 00M 00S 190ms" placeholder="00H 00M 00S 190ms">
                         <input type="range" id="exportSilenceSlider" class="export-slider" 
                                min="0.001" max="36000" step="0.001" value="10">
                     </div>
@@ -265,7 +286,7 @@
                                 <span class="export-checkbox-label">Fade In</span>
                             </label>
                             <input type="text" id="exportFadeInTime" class="export-time-input" 
-                                   value="00H 00M 05S 000ms" placeholder="00H 00M 05S 000ms">
+                                   value="00H 00M 00S 001ms" placeholder="00H 00M 00S 001ms">
                             <input type="range" id="exportFadeInSlider" class="export-slider" 
                                    min="0.001" max="36000" step="0.001" value="5">
                         </div>
@@ -276,7 +297,7 @@
                                 <span class="export-checkbox-label">Fade Out</span>
                             </label>
                             <input type="text" id="exportFadeOutTime" class="export-time-input" 
-                                   value="00H 00M 05S 000ms" placeholder="00H 00M 05S 000ms">
+                                   value="00H 00M 00S 001ms" placeholder="00H 00M 00S 001ms">
                             <input type="range" id="exportFadeOutSlider" class="export-slider" 
                                    min="0.001" max="36000" step="0.001" value="5">
                         </div>

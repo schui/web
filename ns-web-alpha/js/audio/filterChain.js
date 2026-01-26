@@ -25,6 +25,61 @@ class FilterChain {
     }
     
     /**
+     * Get the state of the filter chain as a JSON-serializable object
+     * @returns {object} Filter chain state
+     */
+    toJSON() {
+        return {
+            filters: this.filters.map(f => {
+                if (f.isAdvanced) {
+                    return {
+                        type: f.config.type,
+                        isAdvanced: true,
+                        config: { ...f.node.config }
+                    };
+                } else {
+                    return {
+                        type: f.config.type,
+                        isAdvanced: false,
+                        config: {
+                            frequency: f.node.frequency.value,
+                            Q: f.node.Q.value,
+                            gain: f.node.gain.value,
+                            detune: f.node.detune.value
+                        }
+                    };
+                }
+            })
+        };
+    }
+
+    /**
+     * Update the filter chain from a JSON state object
+     * @param {object} state - Filter chain state
+     */
+    async fromJSON(state) {
+        if (!state || !Array.isArray(state.filters)) return;
+
+        // Clear existing filters
+        await this.clear();
+
+        // Add new filters
+        for (const filterData of state.filters) {
+            await this.addFilter(filterData.type, filterData.config);
+        }
+    }
+
+    /**
+     * Clear all filters from the chain
+     */
+    async clear() {
+        // Remove filters in reverse order to maintain stability
+        while (this.filters.length > 0) {
+            await this.removeFilter(0);
+        }
+    }
+
+    /**
      * Set up the basic input/output chain
      */
     setupChain() {

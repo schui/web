@@ -87,7 +87,14 @@ class NoiseShaperweb {
             filterModal: document.getElementById('filterModal'),
             filterModalCancel: document.querySelector('#filterModal .filter-modal-cancel'),
             // Export controls
-            exportBtn: document.getElementById('exportBtn')
+            exportBtn: document.getElementById('exportBtn'),
+            // JSON Config elements
+            jsonConfigBtn: document.getElementById('jsonConfigBtn'),
+            jsonModal: document.getElementById('jsonModal'),
+            jsonModalClose: document.getElementById('jsonModalClose'),
+            jsonTextArea: document.getElementById('jsonTextArea'),
+            jsonApplyBtn: document.getElementById('jsonApplyBtn'),
+            jsonCancelBtn: document.getElementById('jsonCancelBtn')
         };
         
         // Verify essential elements exist
@@ -174,6 +181,39 @@ class NoiseShaperweb {
         this.elements.dismissError.addEventListener('click', () => {
             this.hideError();
         });
+
+        // JSON Config controls
+        if (this.elements.jsonConfigBtn) {
+            this.elements.jsonConfigBtn.addEventListener('click', () => {
+                this.handleJSONConfigClick();
+            });
+        }
+
+        if (this.elements.jsonModalClose) {
+            this.elements.jsonModalClose.addEventListener('click', () => {
+                this.hideJSONModal();
+            });
+        }
+
+        if (this.elements.jsonCancelBtn) {
+            this.elements.jsonCancelBtn.addEventListener('click', () => {
+                this.hideJSONModal();
+            });
+        }
+
+        if (this.elements.jsonApplyBtn) {
+            this.elements.jsonApplyBtn.addEventListener('click', () => {
+                this.handleJSONApply();
+            });
+        }
+
+        if (this.elements.jsonModal) {
+            this.elements.jsonModal.addEventListener('click', (event) => {
+                if (event.target === this.elements.jsonModal) {
+                    this.hideJSONModal();
+                }
+            });
+        }
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (event) => {
@@ -437,6 +477,26 @@ class NoiseShaperweb {
         }
     }
     
+    /**
+     * Update the entire track list UI from TrackManager state
+     */
+    updateTrackListUI() {
+        if (!this.elements.trackList || !this.trackManager) return;
+        
+        // Clear current list
+        this.elements.trackList.innerHTML = '';
+        
+        // Create UI for each track
+        this.trackManager.tracks.forEach(track => {
+            this.createTrackUI(track);
+        });
+        
+        // Update selection state if needed
+        if (this.state.selectedTrackId !== null) {
+            this.selectTrack(this.state.selectedTrackId);
+        }
+    }
+
     /**
      * Handle track added event
      */
@@ -1110,6 +1170,62 @@ class NoiseShaperweb {
         if (this.elements.filterModal) {
             this.elements.filterModal.classList.remove('show');
             this.pendingFilterTrackId = null;
+        }
+    }
+
+    /**
+     * Show the JSON configuration modal
+     */
+    handleJSONConfigClick() {
+        if (!this.trackManager) {
+            this.showError('Audio system not initialized. Start audio first.');
+            return;
+        }
+
+        const config = this.trackManager.toJSON();
+        this.elements.jsonTextArea.value = JSON.stringify(config, null, 4);
+        this.elements.jsonModal.classList.add('show');
+    }
+
+    /**
+     * Hide the JSON configuration modal
+     */
+    hideJSONModal() {
+        this.elements.jsonModal.classList.remove('show');
+    }
+
+    /**
+     * Handle JSON application
+     */
+    async handleJSONApply() {
+        try {
+            const jsonText = this.elements.jsonTextArea.value;
+            const config = JSON.parse(jsonText);
+
+            this.updateStatus('Applying JSON configuration...', 'ready');
+            
+            await this.trackManager.fromJSON(config);
+            
+            // Re-render the UI to reflect new state
+            this.updateTrackListUI();
+            
+            // Clear filter editor if the selected track no longer exists
+            if (this.state.selectedTrackId !== null) {
+                const trackExists = this.trackManager.tracks.some(t => t.id === this.state.selectedTrackId);
+                if (!trackExists) {
+                    this.state.selectedTrackId = null;
+                    this.updateFilterEditor(null);
+                } else {
+                    // Update filter editor for current track
+                    this.renderFilterEditor(this.state.selectedTrackId);
+                }
+            }
+
+            this.hideJSONModal();
+            this.updateStatus('JSON configuration applied', 'ready');
+        } catch (error) {
+            console.error('Error applying JSON:', error);
+            this.showError(`Invalid JSON configuration: ${error.message}`);
         }
     }
     
