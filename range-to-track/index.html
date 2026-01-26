@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>JSON Range → Tracks Converter</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 2rem;
+      background: #f7f7f7;
+    }
+    textarea {
+      width: 100%;
+      height: 180px;
+      font-family: monospace;
+      margin-bottom: 1rem;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    h2 {
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>JSON Range → Tracks Converter</h1>
+
+  <p>Input JSON (array of <code>{ start, end }</code>):</p>
+  <textarea id="inputJson">[
+  {"start": 2000, "end": 3000},
+  {"start": 3000, "end": 4000}
+]</textarea>
+
+  <button onclick="convert()">Convert</button>
+
+  <h2>Output JSON</h2>
+  <textarea id="outputJson" readonly></textarea>
+
+  <script>
+    function convert() {
+      try {
+        const input = JSON.parse(document.getElementById('inputJson').value);
+
+        const tracks = input.map((range, index) => {
+          const centerFreq = Math.round((range.start + range.end) / 2);
+          const width = Math.round((range.end - range.start) / 2);
+          const flatWidth = Math.round((range.end - range.start) * 0.98);
+
+          return {
+            id: index,
+            currentGain: 1,
+            isMuted: false,
+            filterChain: {
+              filters: [
+                {
+                  type: "plateau",
+                  isAdvanced: true,
+                  config: {
+                    type: "plateau",
+                    centerFreq,
+                    width,
+                    gain: 0,
+                    skew: 0,
+                    kurtosis: 1,
+                    flatness: 1,
+                    flatWidth
+                  }
+                }
+              ]
+            }
+          };
+        });
+
+        const output = { tracks };
+        document.getElementById('outputJson').value = JSON.stringify(output, null, 2);
+      } catch (err) {
+        alert('Invalid JSON input');
+      }
+    }
+  </script>
+
+</body>
+</html>
