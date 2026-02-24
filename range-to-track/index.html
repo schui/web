@@ -35,6 +35,11 @@
   {"start": 3000, "end": 4000}
 ]</textarea>
 
+  <p>
+    <label for="flatWidthMultiplier">Flat Width Multiplier:</label>
+    <input type="number" id="flatWidthMultiplier" value="1.0" step="0.01" min="0" max="2" style="width: 80px;">
+  </p>
+
   <button onclick="convert()">Convert</button>
 
   <h2>Output JSON</h2>
@@ -44,11 +49,12 @@
     function convert() {
       try {
         const input = JSON.parse(document.getElementById('inputJson').value);
+        const multiplier = parseFloat(document.getElementById('flatWidthMultiplier').value) || 1.0;
 
         const tracks = input.map((range, index) => {
           const centerFreq = Math.round((range.start + range.end) / 2);
           const width = Math.round((range.end - range.start) / 2);
-          const flatWidth = Math.round((range.end - range.start) * 0.98);
+          const flatWidth = Math.round((range.end - range.start) * multiplier);
 
           return {
             id: index,
