@@ -32,7 +32,7 @@
   <p>Input JSON (array of <code>{ start, end }</code>):</p>
   <textarea id="inputJson">[
   {"start": 2000, "end": 3000},
-  {"start": 3000, "end": 4000}
+  {"start": 3000, "end": 4000, "gain": 0.7}
 ]</textarea>
 
   <p>
@@ -55,6 +55,7 @@
           const centerFreq = Math.round((range.start + range.end) / 2);
           const width = Math.round((range.end - range.start) / 2);
           const flatWidth = Math.round((range.end - range.start) * multiplier);
+          const gain = typeof range.gain === 'number' ? range.gain : 0;
 
           return {
             id: index,
@@ -69,7 +70,7 @@
                     type: "plateau",
                     centerFreq,
                     width,
-                    gain: 0,
+                    gain,
                     skew: 0,
                     kurtosis: 1,
                     flatness: 1,
