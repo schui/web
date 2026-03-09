@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extended Hearing Test</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Extended Hearing Test</h1>
+        <p class="description">Test your hearing threshold for faint sounds across a frequency range.</p>
+
+        <section class="configuration">
+            <h2>Test Configuration</h2>
+            <div class="config-grid">
+                <div class="config-item">
+                    <label for="startFreq">Start Frequency (Hz):</label>
+                    <input type="number" id="startFreq" value="500" min="20" max="20000">
+                </div>
+                <div class="config-item">
+                    <label for="endFreq">End Frequency (Hz):</label>
+                    <input type="number" id="endFreq" value="8000" min="20" max="20000">
+                </div>
+                <div class="config-item">
+                    <label for="stepFreq">Interval (Hz):</label>
+                    <input type="number" id="stepFreq" value="500" min="10" max="5000">
+                </div>
+                <div class="config-item">
+                    <label for="testType">Sound Type:</label>
+                    <select id="testType">
+                        <option value="puretone">Pure Tone</option>
+                        <option value="noise">Noise (Band-limited)</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label for="earSide">Ear Side:</label>
+                    <select id="earSide">
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                        <option value="both">Both</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label for="baseLevel">Base Volume (-60 to 0 dB):</label>
+                    <input type="number" id="baseLevel" value="-40" min="-60" max="0">
+                </div>
+            </div>
+        </section>
+
+        <section class="test-controls">
+            <div class="status-panel">
+                <div id="currentFreqDisplay">Frequency: -- Hz</div>
+                <div id="currentLevelDisplay">Current Level: -- dB (offset)</div>
+            </div>
+            
+            <div class="main-buttons">
+                <button id="startBtn" class="primary">Start Test (Space)</button>
+                <button id="stopBtn" class="secondary" disabled>Stop (Esc)</button>
+            </div>
+
+            <div class="adjustment-panel" id="adjustmentPanel" style="display: none;">
+                <p>Adjust the volume until you can <strong>just barely</strong> hear the sound.</p>
+                <div class="volume-controls">
+                    <button id="volDown" class="vol-btn">-1 dB (↓)</button>
+                    <button id="volUp" class="vol-btn">+1 dB (↑)</button>
+                </div>
+                <button id="nextBtn" class="primary">I can hear it (Enter)</button>
+            </div>
+        </section>
+
+        <section class="results">
+            <h2>Results</h2>
+            <div id="resultsLog">
+                <p class="empty-msg">No results yet. Start a test to see your thresholds.</p>
+            </div>
+            <div class="results-actions">
+                <button id="clearResults" class="small-btn">Clear Results</button>
+                <button id="showJsonBtn" class="small-btn">Show JSON Results</button>
+            </div>
+            <div id="jsonOutputContainer" style="display: none; margin-top: 15px;">
+                <textarea id="jsonOutput" readonly style="width: 100%; height: 200px; font-family: monospace; padding: 10px; border-radius: 8px; border: 1px solid #d2d2d7;"></textarea>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
