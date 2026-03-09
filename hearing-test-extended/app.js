@@ -4,14 +4,20 @@ class HearingTestApp {
         this.oscillator = null;
         this.noiseSource = null;
         this.gainNode = null;
+        this.pulseGainNode = null;
         this.pannerNode = null;
+        this.pulseInterval = null;
         
         this.isTesting = false;
         this.currentFreq = 0;
         this.currentLevelOffset = 0; // dB offset from base level
         this.testFrequencies = [];
         this.currentFreqIndex = 0;
-        this.results = []; // Store results for JSON output
+        this.results = {
+            soundType: '',
+            left: [],
+            right: []
+        }; // Store results for JSON output
 
         // UI Elements
         this.startBtn = document.getElementById('startBtn');
@@ -76,7 +82,11 @@ class HearingTestApp {
     }
 
     clearResults() {
-        this.results = [];
+        this.results = {
+            soundType: '',
+            left: [],
+            right: []
+        };
         this.resultsLog.innerHTML = '<p class="empty-msg">No results yet. Start a test to see your thresholds.</p>';
         this.jsonOutput.value = '';
         this.jsonOutputContainer.style.display = 'none';
@@ -107,9 +117,11 @@ class HearingTestApp {
 
     setupAudioChain() {
         this.gainNode = this.audioCtx.createGain();
+        this.pulseGainNode = this.audioCtx.createGain();
         this.pannerNode = this.audioCtx.createStereoPanner();
         
-        this.gainNode.connect(this.pannerNode);
+        this.gainNode.connect(this.pulseGainNode);
+        this.pulseGainNode.connect(this.pannerNode);
         this.pannerNode.connect(this.audioCtx.destination);
 
         const earSide = document.getElementById('earSide').value;
@@ -174,6 +186,14 @@ class HearingTestApp {
     }
 
     cleanupSource() {
+        if (this.pulseInterval) {
+            clearInterval(this.pulseInterval);
+            this.pulseInterval = null;
+        }
+        if (this.pulseGainNode) {
+            this.pulseGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
+            this.pulseGainNode.gain.setTargetAtTime(0, this.audioCtx.currentTime, 0.05);
+        }
         if (this.oscillator) {
             this.oscillator.stop();
             this.oscillator.disconnect();
@@ -203,6 +223,20 @@ class HearingTestApp {
         }
         
         this.updateGain();
+
+        const pulseMode = document.getElementById('pulseMode').value;
+        if (pulseMode === 'pulsed') {
+            this.pulseGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
+            this.pulseGainNode.gain.setValueAtTime(0, this.audioCtx.currentTime);
+            this.startPulsing();
+        } else {
+            if (this.pulseInterval) {
+                clearInterval(this.pulseInterval);
+                this.pulseInterval = null;
+            }
+            this.pulseGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
+            this.pulseGainNode.gain.setTargetAtTime(1, this.audioCtx.currentTime, 0.05);
+        }
 
         const testType = document.getElementById('testType').value;
         if (testType === 'puretone') {
@@ -245,6 +279,25 @@ class HearingTestApp {
         this.noiseSource.start();
     }
 
+    startPulsing() {
+        if (this.pulseInterval) clearInterval(this.pulseInterval);
+        
+        const pulseOn = 0.5; // 500ms on
+        const pulseOff = 0.5; // 500ms off
+        const rampTime = 0.05; // 50ms ramp
+        
+        const cycle = () => {
+            if (!this.isTesting || !this.pulseGainNode || !this.audioCtx) return;
+            const now = this.audioCtx.currentTime;
+            // Ensure we are not scheduling too far in the future or past
+            this.pulseGainNode.gain.setTargetAtTime(1, now, rampTime);
+            this.pulseGainNode.gain.setTargetAtTime(0, now + pulseOn, rampTime);
+        };
+
+        cycle();
+        this.pulseInterval = setInterval(cycle, (pulseOn + pulseOff) * 1000);
+    }
+
     adjustVolume(delta) {
         this.currentLevelOffset += delta;
         this.updateGain();
@@ -254,17 +307,16 @@ class HearingTestApp {
         const baseLevel = parseFloat(document.getElementById('baseLevel').value);
         const earSide = document.getElementById('earSide').value;
         const totalLevel = baseLevel + this.currentLevelOffset;
+        const soundType = document.getElementById('testType').value;
         
-        // Save to internal results array
-        this.results.push({
-            timestamp: new Date().toISOString(),
-            frequency: this.currentFreq,
-            earSide: earSide,
-            baseLevel: baseLevel,
-            offset: this.currentLevelOffset,
-            totalLevel: totalLevel,
-            soundType: document.getElementById('testType').value
-        });
+        // Save to internal results object
+        this.results.soundType = soundType;
+        if (earSide === 'left' || earSide === 'right') {
+            this.results[earSide].push({
+                frequency: this.currentFreq,
+                offset: this.currentLevelOffset
+            });
+        }
 
         // Update JSON output if it's visible
         if (this.jsonOutputContainer.style.display === 'block') {
