@@ -25,6 +25,11 @@ class HearingTestApp {
         this.nextBtn = document.getElementById('nextBtn');
         this.volUpBtn = document.getElementById('volUp');
         this.volDownBtn = document.getElementById('volDown');
+        this.responseBtn = document.getElementById('responseBtn');
+        this.responseStatus = document.getElementById('responseStatus');
+        this.countdownTimer = document.getElementById('countdownTimer');
+        this.manualControls = document.getElementById('manualControls');
+        this.responseControls = document.getElementById('responseControls');
         this.adjustmentPanel = document.getElementById('adjustmentPanel');
         this.currentFreqDisplay = document.getElementById('currentFreqDisplay');
         this.currentLevelDisplay = document.getElementById('currentLevelDisplay');
@@ -33,16 +38,21 @@ class HearingTestApp {
         this.showJsonBtn = document.getElementById('showJsonBtn');
         this.jsonOutput = document.getElementById('jsonOutput');
         this.jsonOutputContainer = document.getElementById('jsonOutputContainer');
+        this.testModeSelect = document.getElementById('testMode');
+        this.beepIntervalConfig = document.getElementById('beepIntervalConfig');
+        this.beepIntervalInput = document.getElementById('beepInterval');
 
         this.initEventListeners();
     }
 
     initEventListeners() {
+        this.testModeSelect.addEventListener('change', () => this.toggleTestModeUI());
         this.startBtn.addEventListener('click', () => this.startTest());
         this.stopBtn.addEventListener('click', () => this.stopTest());
         this.nextBtn.addEventListener('click', () => this.recordResultAndNext());
         this.volUpBtn.addEventListener('click', () => this.adjustVolume(1));
         this.volDownBtn.addEventListener('click', () => this.adjustVolume(-1));
+        this.responseBtn.addEventListener('click', () => this.handleResponse());
         this.clearResultsBtn.addEventListener('click', () => this.clearResults());
         this.showJsonBtn.addEventListener('click', () => this.toggleJsonOutput());
 
@@ -66,7 +76,11 @@ class HearingTestApp {
                     e.preventDefault();
                     break;
                 case 'Enter':
-                    this.recordResultAndNext();
+                    if (document.getElementById('testMode').value === 'audiologist') {
+                        this.handleResponse();
+                    } else {
+                        this.recordResultAndNext();
+                    }
                     e.preventDefault();
                     break;
                 case 'Escape':
@@ -74,7 +88,11 @@ class HearingTestApp {
                     e.preventDefault();
                     break;
                 case 'Space':
-                    this.stopTest();
+                    if (document.getElementById('testMode').value === 'audiologist') {
+                        this.handleResponse();
+                    } else {
+                        this.stopTest();
+                    }
                     e.preventDefault();
                     break;
             }
@@ -103,6 +121,14 @@ class HearingTestApp {
         } else {
             this.jsonOutputContainer.style.display = 'none';
             this.showJsonBtn.textContent = 'Show JSON Results';
+        }
+    }
+
+    toggleTestModeUI() {
+        if (this.testModeSelect.value === 'audiologist') {
+            this.beepIntervalConfig.style.display = 'flex';
+        } else {
+            this.beepIntervalConfig.style.display = 'none';
         }
     }
 
@@ -159,13 +185,27 @@ class HearingTestApp {
                 return;
             }
 
-            this.currentFreqIndex = 0;
-            this.isTesting = true;
-            this.startBtn.disabled = true;
-            this.stopBtn.disabled = false;
-            this.adjustmentPanel.style.display = 'block';
-            
-            // Clear empty message if first result
+        this.currentFreqIndex = 0;
+        this.isTesting = true;
+        this.testMode = document.getElementById('testMode').value;
+        this.startBtn.disabled = true;
+        this.stopBtn.disabled = false;
+        this.adjustmentPanel.style.display = 'block';
+
+        if (this.testMode === 'audiologist') {
+            this.manualControls.style.display = 'none';
+            this.responseControls.style.display = 'block';
+            this.responseBtn.disabled = true;
+            this.responseStatus.textContent = 'Preparing...';
+            this.consecutiveSuccesses = 0;
+            this.consecutiveFailures = 0;
+            this.isBeeping = false;
+        } else {
+            this.manualControls.style.display = 'block';
+            this.responseControls.style.display = 'none';
+        }
+        
+        // Clear empty message if first result
             if (this.resultsLog.querySelector('.empty-msg')) {
                 this.resultsLog.innerHTML = '';
             }
@@ -177,12 +217,17 @@ class HearingTestApp {
 
     stopTest() {
         this.isTesting = false;
+        if (this.audiologistTimeout) clearTimeout(this.audiologistTimeout);
+        if (this.beepTimeout) clearTimeout(this.beepTimeout);
+        if (this.countdownInterval) clearInterval(this.countdownInterval);
+        
         this.startBtn.disabled = false;
         this.stopBtn.disabled = true;
         this.adjustmentPanel.style.display = 'none';
         this.cleanupSource();
         this.currentFreqDisplay.textContent = 'Frequency: -- Hz';
         this.currentLevelDisplay.textContent = 'Current Level: -- dB (offset)';
+        if (this.countdownTimer) this.countdownTimer.textContent = '--';
     }
 
     cleanupSource() {
@@ -224,6 +269,16 @@ class HearingTestApp {
         
         this.updateGain();
 
+        if (this.testMode === 'audiologist') {
+            this.consecutiveSuccesses = 0;
+            this.consecutiveFailures = 0;
+            this.startAudiologistCycle();
+        } else {
+            this.startNormalSound();
+        }
+    }
+
+    startNormalSound() {
         const pulseMode = document.getElementById('pulseMode').value;
         if (pulseMode === 'pulsed') {
             this.pulseGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
@@ -243,6 +298,120 @@ class HearingTestApp {
             this.startPureTone();
         } else {
             this.startNoise();
+        }
+    }
+
+    startAudiologistCycle() {
+        if (!this.isTesting) return;
+        
+        this.cleanupSource();
+        if (this.audiologistTimeout) clearTimeout(this.audiologistTimeout);
+        if (this.countdownInterval) clearInterval(this.countdownInterval);
+        
+        this.isBeeping = false;
+        this.responseBtn.disabled = true;
+        this.responseStatus.textContent = 'Waiting for beep...';
+
+        // Get configurable interval
+        const intervalSeconds = parseInt(this.beepIntervalInput.value) || 4;
+        let secondsLeft = intervalSeconds;
+        this.countdownTimer.textContent = secondsLeft;
+        
+        this.countdownInterval = setInterval(() => {
+            secondsLeft--;
+            if (secondsLeft >= 0) {
+                this.countdownTimer.textContent = secondsLeft;
+            }
+            if (secondsLeft <= 0) {
+                clearInterval(this.countdownInterval);
+            }
+        }, 1000);
+        
+        this.audiologistTimeout = setTimeout(() => {
+            if (!this.isTesting) return;
+            this.playAudiologistBeep();
+        }, intervalSeconds * 1000);
+    }
+
+    playAudiologistBeep() {
+        this.isBeeping = true;
+        this.responseBtn.disabled = false;
+        this.responseStatus.textContent = 'DID YOU HEAR THAT?';
+        if (this.countdownTimer) this.countdownTimer.textContent = '0';
+        
+        const testType = document.getElementById('testType').value;
+        if (testType === 'puretone') {
+            this.startPureTone();
+        } else {
+            this.startNoise();
+        }
+
+        // Tone duration: 1 second
+        this.pulseGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
+        this.pulseGainNode.gain.setTargetAtTime(1, this.audioCtx.currentTime, 0.05);
+        this.pulseGainNode.gain.setTargetAtTime(0, this.audioCtx.currentTime + 1.0, 0.05);
+
+        this.beepTimeout = setTimeout(() => {
+            if (!this.isTesting || !this.isBeeping) return;
+            // User didn't respond in time
+            this.handleMiss();
+        }, 2000); // 2 seconds to respond (1s beep + 1s silence)
+    }
+
+    handleResponse() {
+        if (!this.isTesting || this.testMode !== 'audiologist') return;
+        
+        if (this.isBeeping) {
+            // Success!
+            this.isBeeping = false;
+            clearTimeout(this.beepTimeout);
+            this.cleanupSource();
+            
+            this.responseStatus.textContent = 'Heard it!';
+            this.consecutiveSuccesses++;
+            this.consecutiveFailures = 0;
+            
+            if (this.consecutiveSuccesses >= 2) {
+                // We found a threshold (or at least we want to go lower)
+                // In a real Hughson-Westlake, we go down 10dB after success
+                // and up 5dB after failure.
+                // For simplicity here, let's just go down 5dB until they miss twice.
+                this.currentLevelOffset -= 5;
+                this.updateGain();
+                this.consecutiveSuccesses = 0;
+                setTimeout(() => this.startAudiologistCycle(), 1000);
+            } else {
+                // One more success at this level to be sure? 
+                // Let's just go down immediately for better UX in a web app.
+                this.currentLevelOffset -= 5;
+                this.updateGain();
+                setTimeout(() => this.startAudiologistCycle(), 1000);
+            }
+        } else {
+            // False positive
+            this.responseStatus.textContent = 'False alarm!';
+            // Just wait and try again
+        }
+    }
+
+    handleMiss() {
+        this.isBeeping = false;
+        this.cleanupSource();
+        this.responseStatus.textContent = 'Missed it.';
+        
+        this.consecutiveFailures++;
+        this.consecutiveSuccesses = 0;
+        
+        if (this.consecutiveFailures >= 2) {
+            // Two misses in a row means the threshold is probably the PREVIOUS level
+            // but since we go down 5dB each time, let's say it's current + 5.
+            this.currentLevelOffset += 5;
+            this.recordResultAndNext();
+        } else {
+            // Try going up
+            this.currentLevelOffset += 5;
+            this.updateGain();
+            setTimeout(() => this.startAudiologistCycle(), 1000);
         }
     }
 

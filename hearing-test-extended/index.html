@@ -49,8 +49,19 @@
                     </select>
                 </div>
                 <div class="config-item">
+                    <label for="testMode">Operation Mode:</label>
+                    <select id="testMode">
+                        <option value="manual">Manual Adjustment</option>
+                        <option value="audiologist">Audiologist (Response Mode)</option>
+                    </select>
+                </div>
+                <div class="config-item">
                     <label for="baseLevel">Base Volume (-60 to 0 dB):</label>
                     <input type="number" id="baseLevel" value="-40" min="-60" max="0">
+                </div>
+                <div class="config-item" id="beepIntervalConfig" style="display: none;">
+                    <label for="beepInterval">Beep Interval (s):</label>
+                    <input type="number" id="beepInterval" value="4" min="2" max="10">
                 </div>
             </div>
         </section>
@@ -67,12 +78,24 @@
             </div>
 
             <div class="adjustment-panel" id="adjustmentPanel" style="display: none;">
-                <p>Adjust the volume until you can <strong>just barely</strong> hear the sound.</p>
-                <div class="volume-controls">
-                    <button id="volDown" class="vol-btn">-1 dB (↓)</button>
-                    <button id="volUp" class="vol-btn">+1 dB (↑)</button>
+                <div id="manualControls">
+                    <p>Adjust the volume until you can <strong>just barely</strong> hear the sound.</p>
+                    <div class="volume-controls">
+                        <button id="volDown" class="vol-btn">-1 dB (↓)</button>
+                        <button id="volUp" class="vol-btn">+1 dB (↑)</button>
+                    </div>
+                    <button id="nextBtn" class="primary">I can hear it (Enter)</button>
                 </div>
-                <button id="nextBtn" class="primary">I can hear it (Enter)</button>
+                <div id="responseControls" style="display: none;">
+                    <p>Click the button or press Space/Enter <strong>when you hear a beep</strong>.</p>
+                    <div class="response-actions">
+                        <button id="responseBtn" class="primary big-btn">I HEAR IT!</button>
+                    </div>
+                    <div id="countdownContainer" style="margin-bottom: 10px;">
+                        Next beep in: <span id="countdownTimer">--</span>s
+                    </div>
+                    <p id="responseStatus" class="status-msg">Waiting for beep...</p>
+                </div>
             </div>
         </section>
 
