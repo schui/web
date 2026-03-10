@@ -9,6 +9,7 @@ class HearingTestApp {
         this.pulseInterval = null;
         
         this.isTesting = false;
+        this.isPaused = false;
         this.currentFreq = 0;
         this.currentLevelOffset = 0; // dB offset from base level
         this.testFrequencies = [];
@@ -21,6 +22,8 @@ class HearingTestApp {
 
         // UI Elements
         this.startBtn = document.getElementById('startBtn');
+        this.pauseBtn = document.getElementById('pauseBtn');
+        this.restartBtn = document.getElementById('restartBtn');
         this.stopBtn = document.getElementById('stopBtn');
         this.nextBtn = document.getElementById('nextBtn');
         this.volUpBtn = document.getElementById('volUp');
@@ -48,6 +51,8 @@ class HearingTestApp {
     initEventListeners() {
         this.testModeSelect.addEventListener('change', () => this.toggleTestModeUI());
         this.startBtn.addEventListener('click', () => this.startTest());
+        this.pauseBtn.addEventListener('click', () => this.togglePause());
+        this.restartBtn.addEventListener('click', () => this.restartTest());
         this.stopBtn.addEventListener('click', () => this.stopTest());
         this.nextBtn.addEventListener('click', () => this.recordResultAndNext());
         this.volUpBtn.addEventListener('click', () => this.adjustVolume(1));
@@ -67,6 +72,14 @@ class HearingTestApp {
             }
 
             switch (e.code) {
+                case 'KeyP':
+                    this.togglePause();
+                    e.preventDefault();
+                    break;
+                case 'KeyR':
+                    this.restartTest();
+                    e.preventDefault();
+                    break;
                 case 'ArrowUp':
                     this.adjustVolume(1);
                     e.preventDefault();
@@ -132,6 +145,44 @@ class HearingTestApp {
         }
     }
 
+    togglePause() {
+        if (!this.isTesting) return;
+
+        this.isPaused = !this.isPaused;
+        if (this.isPaused) {
+            this.pauseBtn.textContent = 'Resume (P)';
+            this.cleanupSource();
+            
+            // In audiologist mode, stop timers
+            if (this.testMode === 'audiologist') {
+                if (this.audiologistTimeout) clearTimeout(this.audiologistTimeout);
+                if (this.beepTimeout) clearTimeout(this.beepTimeout);
+                if (this.countdownInterval) clearInterval(this.countdownInterval);
+                this.responseStatus.textContent = 'Paused';
+            }
+            
+            // Disable interaction buttons
+            this.volUpBtn.disabled = true;
+            this.volDownBtn.disabled = true;
+            this.nextBtn.disabled = true;
+            this.responseBtn.disabled = true;
+        } else {
+            this.pauseBtn.textContent = 'Pause (P)';
+            
+            // Enable interaction buttons
+            this.volUpBtn.disabled = false;
+            this.volDownBtn.disabled = false;
+            this.nextBtn.disabled = false;
+            // responseBtn will be managed by startAudiologistCycle/playAudiologistBeep
+            
+            if (this.testMode === 'audiologist') {
+                this.startAudiologistCycle();
+            } else {
+                this.startNormalSound();
+            }
+        }
+    }
+
     async initAudio() {
         if (!this.audioCtx) {
             this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -187,6 +238,10 @@ class HearingTestApp {
 
         this.currentFreqIndex = 0;
         this.isTesting = true;
+        this.isPaused = false;
+        this.pauseBtn.disabled = false;
+        this.pauseBtn.textContent = 'Pause (P)';
+        this.restartBtn.disabled = false;
         this.testMode = document.getElementById('testMode').value;
         this.startBtn.disabled = true;
         this.stopBtn.disabled = false;
@@ -217,17 +272,27 @@ class HearingTestApp {
 
     stopTest() {
         this.isTesting = false;
+        this.isPaused = false;
         if (this.audiologistTimeout) clearTimeout(this.audiologistTimeout);
         if (this.beepTimeout) clearTimeout(this.beepTimeout);
         if (this.countdownInterval) clearInterval(this.countdownInterval);
         
         this.startBtn.disabled = false;
+        this.pauseBtn.disabled = true;
+        this.pauseBtn.textContent = 'Pause (P)';
+        this.restartBtn.disabled = true;
         this.stopBtn.disabled = true;
         this.adjustmentPanel.style.display = 'none';
         this.cleanupSource();
         this.currentFreqDisplay.textContent = 'Frequency: -- Hz';
         this.currentLevelDisplay.textContent = 'Current Level: -- dB (offset)';
         if (this.countdownTimer) this.countdownTimer.textContent = '--';
+    }
+
+    restartTest() {
+        if (!confirm('Are you sure you want to restart the test from the beginning? Current progress will be lost.')) return;
+        this.stopTest();
+        this.startTest();
     }
 
     cleanupSource() {
@@ -318,6 +383,7 @@ class HearingTestApp {
         this.countdownTimer.textContent = secondsLeft;
         
         this.countdownInterval = setInterval(() => {
+            if (this.isPaused) return;
             secondsLeft--;
             if (secondsLeft >= 0) {
                 this.countdownTimer.textContent = secondsLeft;
@@ -328,7 +394,7 @@ class HearingTestApp {
         }, 1000);
         
         this.audiologistTimeout = setTimeout(() => {
-            if (!this.isTesting) return;
+            if (!this.isTesting || this.isPaused) return;
             this.playAudiologistBeep();
         }, intervalSeconds * 1000);
     }
@@ -352,14 +418,14 @@ class HearingTestApp {
         this.pulseGainNode.gain.setTargetAtTime(0, this.audioCtx.currentTime + 1.0, 0.05);
 
         this.beepTimeout = setTimeout(() => {
-            if (!this.isTesting || !this.isBeeping) return;
+            if (!this.isTesting || !this.isBeeping || this.isPaused) return;
             // User didn't respond in time
             this.handleMiss();
         }, 2000); // 2 seconds to respond (1s beep + 1s silence)
     }
 
     handleResponse() {
-        if (!this.isTesting || this.testMode !== 'audiologist') return;
+        if (!this.isTesting || this.testMode !== 'audiologist' || this.isPaused) return;
         
         if (this.isBeeping) {
             // Success!
@@ -468,11 +534,13 @@ class HearingTestApp {
     }
 
     adjustVolume(delta) {
+        if (this.isPaused) return;
         this.currentLevelOffset += delta;
         this.updateGain();
     }
 
     recordResultAndNext() {
+        if (this.isPaused) return;
         const baseLevel = parseFloat(document.getElementById('baseLevel').value);
         const earSide = document.getElementById('earSide').value;
         const totalLevel = baseLevel + this.currentLevelOffset;
@@ -494,14 +562,33 @@ class HearingTestApp {
 
         const resultItem = document.createElement('div');
         resultItem.className = 'result-item';
+        const currentIndex = this.currentFreqIndex;
         resultItem.innerHTML = `
             <span><strong>${this.currentFreq} Hz</strong> (${earSide})</span>
             <span>Threshold: ${this.currentLevelOffset > 0 ? '+' : ''}${this.currentLevelOffset} dB (at ${totalLevel.toFixed(1)} dB)</span>
+            <button class="small-btn retest-btn" data-index="${currentIndex}">Retest</button>
         `;
+        
+        // Add event listener to the retest button
+        resultItem.querySelector('.retest-btn').addEventListener('click', (e) => {
+            this.retestFrequency(parseInt(e.target.getAttribute('data-index')));
+        });
+
         this.resultsLog.appendChild(resultItem);
         this.resultsLog.scrollTop = this.resultsLog.scrollHeight;
 
         this.currentFreqIndex++;
+        this.runFrequencyStep();
+    }
+
+    retestFrequency(index) {
+        if (!this.isTesting) {
+            alert('Please start the test first.');
+            return;
+        }
+        if (!confirm(`Are you sure you want to retest frequency ${this.testFrequencies[index]} Hz?`)) return;
+        
+        this.currentFreqIndex = index;
         this.runFrequencyStep();
     }
 }
