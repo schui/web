@@ -42,6 +42,8 @@
 
   <button onclick="convert()">Convert</button>
 
+  <p>Total Frequency Covered: <span id="totalFreq">0</span> Hz</p>
+
   <h2>Output JSON</h2>
   <textarea id="outputJson" readonly></textarea>
 
@@ -81,6 +83,9 @@
             }
           };
         });
+
+        const totalFreq = input.reduce((acc, range) => acc + (range.end - range.start), 0);
+        document.getElementById('totalFreq').innerText = totalFreq;
 
         const output = { tracks };
         document.getElementById('outputJson').value = JSON.stringify(output, null, 2);
