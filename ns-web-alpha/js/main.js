@@ -94,7 +94,11 @@ class NoiseShaperweb {
             jsonModalClose: document.getElementById('jsonModalClose'),
             jsonTextArea: document.getElementById('jsonTextArea'),
             jsonApplyBtn: document.getElementById('jsonApplyBtn'),
-            jsonCancelBtn: document.getElementById('jsonCancelBtn')
+            jsonCancelBtn: document.getElementById('jsonCancelBtn'),
+            // Range conversion elements
+            rangeTextArea: document.getElementById('rangeTextArea'),
+            convertRangeBtn: document.getElementById('convertRangeBtn'),
+            flatWidthMultiplier: document.getElementById('flatWidthMultiplier')
         };
         
         // Verify essential elements exist
@@ -204,6 +208,12 @@ class NoiseShaperweb {
         if (this.elements.jsonApplyBtn) {
             this.elements.jsonApplyBtn.addEventListener('click', () => {
                 this.handleJSONApply();
+            });
+        }
+
+        if (this.elements.convertRangeBtn) {
+            this.elements.convertRangeBtn.addEventListener('click', () => {
+                this.handleRangeConversion();
             });
         }
 
@@ -1229,6 +1239,67 @@ class NoiseShaperweb {
         }
     }
     
+    /**
+     * Handle Range to Track conversion
+     */
+    handleRangeConversion() {
+        try {
+            const rangeText = this.elements.rangeTextArea.value.trim();
+            if (!rangeText) {
+                this.showError('Please enter range JSON');
+                return;
+            }
+
+            const ranges = JSON.parse(rangeText);
+            if (!Array.isArray(ranges)) {
+                throw new Error('Input must be an array of ranges');
+            }
+
+            const multiplier = parseFloat(this.elements.flatWidthMultiplier.value) || 1.0;
+
+            const tracks = ranges.map((range, index) => {
+                const start = range.start || 0;
+                const end = range.end || 0;
+                const centerFreq = Math.round((start + end) / 2);
+                const width = Math.round((end - start) / 2);
+                const flatWidth = Math.round((end - start) * multiplier);
+                const gain = typeof range.gain === 'number' ? range.gain : 0;
+
+                return {
+                    id: index,
+                    currentGain: 1,
+                    isMuted: false,
+                    filterChain: {
+                        filters: [
+                            {
+                                type: "plateau",
+                                isAdvanced: true,
+                                config: {
+                                    type: "plateau",
+                                    centerFreq,
+                                    width,
+                                    gain,
+                                    skew: 0,
+                                    kurtosis: 1,
+                                    flatness: 1,
+                                    flatWidth
+                                }
+                            }
+                        ]
+                    }
+                };
+            });
+
+            const config = { tracks };
+            this.elements.jsonTextArea.value = JSON.stringify(config, null, 4);
+            
+            this.updateStatus('Ranges converted to Track JSON', 'ready');
+        } catch (error) {
+            console.error('Error converting ranges:', error);
+            this.showError(`Conversion error: ${error.message}`);
+        }
+    }
+
     /**
      * Handle filter type selection from modal
      */
