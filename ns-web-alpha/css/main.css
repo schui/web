@@ -2692,6 +2692,38 @@ input:checked + .toggle-slider:before {
     border-color: var(--text-primary);
 }
 
+.export-modal-preview {
+    background: var(--accent-blue, #2196f3);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.export-modal-preview:hover {
+    background: #1e88e5;
+    transform: translateY(-1px);
+}
+
+.export-modal-preview:disabled {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.export-modal-preview.playing {
+    background: var(--accent-red, #f44336);
+}
+
+.export-modal-preview.playing:hover {
+    background: #d32f2f;
+}
+
 .export-modal-start {
     background: var(--accent-green);
     border: none;

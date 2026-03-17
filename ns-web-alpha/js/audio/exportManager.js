@@ -76,6 +76,7 @@ class ExportManager extends EventTarget {
             // Modal controls
             closeBtn: document.getElementById('exportModalClose'),
             cancelBtn: document.getElementById('exportModalCancel'),
+            previewBtn: document.getElementById('exportModalPreview'),
             startBtn: document.getElementById('exportModalStart'),
             
             // Progress
@@ -205,6 +206,9 @@ class ExportManager extends EventTarget {
         
         // Export button
         this.elements.startBtn?.addEventListener('click', () => this.startExport());
+
+        // Preview button
+        this.elements.previewBtn?.addEventListener('click', () => this.togglePreview());
         
         // Real-time validation
         this.elements.durationTime?.addEventListener('input', () => this.validateDuration());
@@ -257,9 +261,16 @@ class ExportManager extends EventTarget {
     
     hide() {
         if (!this.modal) return;
-        
+
+        this.stopPreview();
         this.modal.classList.remove('show');
         this.isVisible = false;
+
+        // Close audio context to free resources
+        if (this.previewAudioCtx) {
+            this.previewAudioCtx.close();
+            this.previewAudioCtx = null;
+        }
         
         // Hide progress if showing
         this.hideProgress();
@@ -618,7 +629,8 @@ class ExportManager extends EventTarget {
         if (!this.validateForm()) {
             return;
         }
-        
+
+        this.stopPreview();
         const settings = this.getCurrentSettings();
         this.currentSettings = { ...settings };
         
@@ -1197,6 +1209,142 @@ class ExportManager extends EventTarget {
         
         // Clear cancel function
         this.cancelExport = null;
+    }
+
+    /**
+     * Toggle preview playback
+     */
+    async togglePreview() {
+        if (this.isPlayingPreview) {
+            this.stopPreview();
+        } else {
+            await this.startPreview();
+        }
+    }
+
+    /**
+     * Start preview generation and playback
+     */
+    async startPreview() {
+        if (!this.validateForm()) return;
+
+        const settings = this.getCurrentSettings();
+        const previewBtn = this.elements.previewBtn;
+
+        try {
+            if (previewBtn) {
+                previewBtn.disabled = true;
+                previewBtn.textContent = 'Generating...';
+            }
+
+            // Generate "actual wave file" (combined if multiple clips)
+            let audioData;
+            const durationSeconds = settings.duration / 1000.0;
+            
+            if (settings.clips === 1) {
+                audioData = await this.generateClipAudio(durationSeconds, settings);
+            } else {
+                // Generate all clips and combine like in performExport
+                const clips = [];
+                for (let i = 0; i < settings.clips; i++) {
+                    // Update preview button with generation progress
+                    if (previewBtn) {
+                        previewBtn.textContent = `Generating ${i + 1}/${settings.clips}...`;
+                    }
+                    const clip = await this.generateClipAudio(durationSeconds, settings);
+                    clips.push(clip);
+                }
+                audioData = this.combineClips(clips, settings);
+            }
+
+            // Set up audio context if not already done
+            if (!this.previewAudioCtx) {
+                this.previewAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            // Resume context if suspended (common in browsers)
+            if (this.previewAudioCtx.state === 'suspended') {
+                await this.previewAudioCtx.resume();
+            }
+
+            // Create buffer
+            const sampleRate = settings.exportSampleRate || 44100;
+            const buffer = this.previewAudioCtx.createBuffer(1, audioData.length, sampleRate);
+            buffer.getChannelData(0).set(audioData);
+
+            // Log buffer info for debugging
+            const hasNonZero = audioData.some(sample => sample !== 0);
+            console.log('🎵 PREVIEW: Buffer prepared', {
+                length: audioData.length,
+                sampleRate: sampleRate,
+                contextSampleRate: this.previewAudioCtx.sampleRate,
+                hasNonZero: hasNonZero,
+                contextState: this.previewAudioCtx.state
+            });
+
+            if (!hasNonZero) {
+                console.warn('🎵 PREVIEW: Generated audio buffer is silent (all zeros)');
+            }
+
+            // Create source
+            this.stopPreviewNode();
+            this.previewSource = this.previewAudioCtx.createBufferSource();
+            this.previewSource.buffer = buffer;
+            this.previewSource.loop = true;
+
+            // Add gain node for safety
+            this.previewGain = this.previewAudioCtx.createGain();
+            this.previewGain.gain.value = 0.7; // Preview at 70% volume
+
+            this.previewSource.connect(this.previewGain);
+            this.previewGain.connect(this.previewAudioCtx.destination);
+
+            // Start playback
+            this.previewSource.start(0);
+            this.isPlayingPreview = true;
+
+            if (previewBtn) {
+                previewBtn.disabled = false;
+                previewBtn.textContent = 'Stop Preview';
+                previewBtn.classList.add('playing');
+            }
+        } catch (error) {
+            console.error('Preview failed:', error);
+            this.showError(`Preview failed: ${error.message}`);
+            if (previewBtn) {
+                previewBtn.disabled = false;
+                previewBtn.textContent = 'Preview Loop';
+            }
+        }
+    }
+
+    /**
+     * Stop preview playback
+     */
+    stopPreview() {
+        this.stopPreviewNode();
+        this.isPlayingPreview = false;
+
+        const previewBtn = this.elements.previewBtn;
+        if (previewBtn) {
+            previewBtn.textContent = 'Preview Loop';
+            previewBtn.classList.remove('playing');
+        }
+    }
+
+    /**
+     * Stop the actual audio node
+     */
+    stopPreviewNode() {
+        if (this.previewSource) {
+            try {
+                this.previewSource.stop();
+                this.previewSource.disconnect();
+            } catch (e) {
+                // Ignore errors if already stopped
+            }
+            this.previewSource = null;
+        }
     }
 }
 
