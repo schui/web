@@ -1880,6 +1880,22 @@ input:checked + .toggle-slider:before {
     opacity: 0.9;
 }
 
+.range-info {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -0.25rem;
+}
+
+.range-info .json-modal-description {
+    font-size: 0.9rem;
+    color: var(--accent-green);
+    margin: 0;
+}
+
+.range-info #totalFreq {
+    font-weight: 600;
+}
+
 .json-textarea:focus {
     outline: none;
     border-color: var(--accent-blue);

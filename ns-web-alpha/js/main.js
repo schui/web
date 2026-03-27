@@ -98,7 +98,8 @@ class NoiseShaperweb {
             // Range conversion elements
             rangeTextArea: document.getElementById('rangeTextArea'),
             convertRangeBtn: document.getElementById('convertRangeBtn'),
-            flatWidthMultiplier: document.getElementById('flatWidthMultiplier')
+            flatWidthMultiplier: document.getElementById('flatWidthMultiplier'),
+            totalFreq: document.getElementById('totalFreq')
         };
         
         // Verify essential elements exist
@@ -1292,6 +1293,12 @@ class NoiseShaperweb {
 
             const config = { tracks };
             this.elements.jsonTextArea.value = JSON.stringify(config, null, 4);
+            
+            // Calculate and display total frequency covered
+            const totalFreq = ranges.reduce((acc, range) => acc + (Math.abs((range.end || 0) - (range.start || 0))), 0);
+            if (this.elements.totalFreq) {
+                this.elements.totalFreq.textContent = totalFreq.toLocaleString();
+            }
             
             this.updateStatus('Ranges converted to Track JSON', 'ready');
         } catch (error) {
