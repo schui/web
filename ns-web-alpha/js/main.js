@@ -1522,8 +1522,23 @@ class NoiseShaperweb {
      * Handle keyboard shortcuts
      */
     handleKeyboardShortcuts(event) {
-        if (event.target.tagName === 'INPUT') {
-            return; // Don't trigger shortcuts when typing in inputs
+        if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+            return; // Don't trigger shortcuts when typing in inputs or textareas
+        }
+
+        // Don't trigger shortcuts if any modal is open
+        const modals = ['jsonModal', 'filterModal', 'exportModal'];
+        for (const modalId of modals) {
+            const modal = this.elements[modalId] || document.getElementById(modalId);
+            if (modal && modal.classList.contains('show')) {
+                // Special case: Escape should still work to close modals
+                if (event.code === 'Escape') {
+                    if (modalId === 'filterModal') this.hideFilterModal();
+                    else if (modalId === 'jsonModal') this.hideJSONModal();
+                    else if (modalId === 'exportModal' && this.exportManager) this.exportManager.hide();
+                }
+                return;
+            }
         }
         
         switch (event.code) {
