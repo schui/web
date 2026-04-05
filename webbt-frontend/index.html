@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AudioTENS</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#f0f2f5;padding:.8em;max-width:580px;margin:0 auto}
+.card{background:#fff;border-radius:10px;padding:1.1em;box-shadow:0 2px 8px rgba(0,0,0,.1);margin-bottom:.9em}
+h2{margin-bottom:.5em}h3{font-size:.97em;color:#333;margin:.6em 0 .4em}
+.row{display:flex;gap:.6em;margin-top:.7em}
+.btn{flex:1;padding:.65em;border:none;border-radius:5px;font-size:1em;cursor:pointer;color:#fff;font-weight:bold}
+.g{background:#4CAF50}.r{background:#e53935}.b{background:#1976D2}.dg{background:#757575}.or{background:#e65100}
+.btn:disabled{opacity:.4;cursor:default}
+.sm{padding:.3em .7em;font-size:.82em;border:none;border-radius:4px;cursor:pointer;color:#fff}
+.badge{display:inline-block;padding:.2em .75em;border-radius:10px;font-weight:bold;font-size:.9em}
+.on{background:#d4edda;color:#1a5c2a}.off{background:#f8d7da;color:#721c24}
+.ble-on{background:#e3f2fd;color:#0d47a1}.ble-off{background:#fce4ec;color:#880e4f}
+label{font-size:.83em;color:#555;font-weight:bold;margin-top:.5em;display:block}
+input,select{width:100%;padding:.38em .55em;border:1px solid #ccc;border-radius:4px;font-size:.93em;margin-top:.1em}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:.5em}
+table{width:100%;border-collapse:collapse;font-size:.9em;margin-top:.4em}
+th{background:#f5f5f5;padding:.35em .4em;text-align:left;border-bottom:2px solid #ddd;font-size:.85em}
+td{padding:.25em .3em;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+td input{margin:0;padding:.2em .35em}
+.pi{display:flex;align-items:center;padding:.4em 0;border-bottom:1px solid #eee;gap:.4em}
+.pn{flex:1;font-size:.92em}
+.msg{font-size:.82em;color:#1976D2;min-height:1.1em;margin-top:.3em}
+hr{border:none;border-top:1px solid #eee;margin:.7em 0}
+.edit-panel{background:#f8f9ff;border:1px solid #c5cae9;border-radius:8px;padding:.8em;margin-top:.4em}
+.ord{display:flex;flex-direction:column;gap:1px;align-items:center}
+.ord button{padding:0 5px;font-size:.7em;line-height:1.5;border:none;border-radius:3px;cursor:pointer;background:#e0e0e0;color:#333;width:100%}
+.ord button:hover{background:#bdbdbd}
+details.cpanel summary{cursor:pointer;font-weight:bold;font-size:.95em;color:#444;list-style:none;display:flex;align-items:center;gap:.4em;user-select:none}
+details.cpanel summary::-webkit-details-marker{display:none}
+details.cpanel summary::before{content:'›';font-size:1.2em;color:#aaa;display:inline-block;transition:transform .2s;width:.9em;text-align:center}
+details[open].cpanel summary::before{transform:rotate(90deg)}
+details.cpanel .cpanel-body{padding-top:.7em;border-top:1px solid #eee;margin-top:.6em}
+</style>
+</head><body>
+
+<div class="card">
+  <h2>AudioTENS</h2>
+  <p>BLE: <span id="ble-badge" class="badge ble-off">Disconnected</span></p>
+  <div class="row">
+    <button class="btn b" onclick="bleConnect()" id="btn-connect">&#128268; Connect</button>
+    <button class="btn dg" onclick="bleDisconnect()" id="btn-disconnect" style="display:none">Disconnect</button>
+  </div>
+  <hr>
+  <p>Audio: <span id="badge" class="badge off">Stopped</span> &nbsp;<span id="elapsed" style="font-size:.9em;color:#888;font-variant-numeric:tabular-nums"></span></p>
+  <h3>Current Preset</h3>
+  <select id="preset-select" onchange="loadSelectedPreset()" disabled>
+    <option value="">-- Select a preset --</option>
+  </select>
+  <div id="cfg-display" style="margin-top:.7em"><em style="color:#bbb;font-size:.9em">Connect to see configuration</em></div>
+  <p class="msg" id="cm"></p>
+  <div class="row" style="margin-top:.5em">
+    <button class="btn g" id="btn-audio" onclick="audioToggle()" disabled>&#9654; Start</button>
+  </div>
+</div>
+
+
+<div class="card">
+  <details id="panel-presets" class="cpanel">
+    <summary>&#128193; Manage Presets</summary>
+    <div class="cpanel-body">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.4em">
+        <button class="btn g sm" onclick="toggleNewPreset()" id="btn-new-pre" disabled>+ New</button>
+      </div>
+      <div id="new-preset-form" style="display:none" class="edit-panel">
+        <h3 style="margin-top:0">New Preset</h3>
+        <label>Name</label>
+        <input id="np-name" type="text" placeholder="Preset name">
+        <div id="np-bands-wrap" style="margin-top:.5em"></div>
+        <hr>
+        <div class="g2">
+          <div><label>Pulse Delay (&mu;s)</label><input id="np-pd" type="number" value="8000" min="100" max="50000"></div>
+          <div><label>Burst Duration (ms)</label><input id="np-dm" type="number" value="10" min="1" max="50"></div>
+          <div><label>Silence (ms)</label><input id="np-si" type="number" value="190" min="1" max="5000"></div>
+          <div><label>Session (min)</label><input id="np-se" type="number" value="30" min="1" max="240"></div>
+        </div>
+        <div class="row" style="margin-top:.6em">
+          <button class="btn g" onclick="saveNewPreset()">&#10003; Save Preset</button>
+          <button class="btn dg" onclick="cancelNewPreset()">Cancel</button>
+        </div>
+      </div>
+      <div id="pl"><em style="color:#bbb">Connect to load presets</em></div>
+      <p class="msg" id="pm"></p>
+    </div>
+  </details>
+</div>
+
+<div class="card">
+  <details id="panel-backup" class="cpanel">
+    <summary>&#128196; Backup &amp; Restore</summary>
+    <div class="cpanel-body">
+      <textarea id="backup-text" rows="5" style="width:100%;font-size:.78em;font-family:monospace;padding:.4em;border:1px solid #ccc;border-radius:4px;resize:vertical" placeholder="Preset JSON appears here after Export. Paste JSON here before Restore."></textarea>
+      <div class="row" style="margin-top:.5em">
+        <button class="btn b" onclick="exportBackup()" id="btn-exp-all" disabled>&#8595; Export</button>
+        <button class="btn dg" onclick="importBackup()" id="btn-imp" disabled>&#8593; Restore</button>
+      </div>
+      <p class="msg" id="bkem"></p>
+    </div>
+  </details>
+</div>
+
+
+<script>
+const $=id=>document.getElementById(id);
+
+// =============================================================
+// BLE / NUS transport
+// =============================================================
+const NUS_SVC='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_TX ='6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_RX ='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+let bleDevice=null,rxChar=null,rxBuf='',pendingResolve=null;
+
+function onNotify(event){
+  rxBuf+=new TextDecoder().decode(event.target.value);
+  let nl;
+  while((nl=rxBuf.indexOf('\n'))>=0){
+    const line=rxBuf.slice(0,nl).trim(); rxBuf=rxBuf.slice(nl+1);
+    if(!line)continue;
+    try{const p=JSON.parse(line);if(p.event==='session_end'){applyState('idle');stopTimer();continue;}}catch(e){}
+    if(pendingResolve){const res=pendingResolve;pendingResolve=null;res(line);}
+  }
+}
+
+async function bleRaw(obj){
+  if(!rxChar)throw new Error('Not connected');
+  const text=JSON.stringify(obj)+'\n',CHUNK=180;
+  for(let i=0;i<text.length;i+=CHUNK)
+    await rxChar.writeValue(new TextEncoder().encode(text.slice(i,i+CHUNK)));
+  return new Promise((res,rej)=>{
+    pendingResolve=res;
+    setTimeout(()=>{pendingResolve=null;rej(new Error('BLE timeout'));},8000);
+  });
+}
+
+async function bleConnect(){
+  try{
+    bleDevice=await navigator.bluetooth.requestDevice({filters:[{services:[NUS_SVC]}]});
+    bleDevice.addEventListener('gattserverdisconnected',()=>{applyState('disconnected');stopTimer();});
+    const server=await bleDevice.gatt.connect();
+    const svc=await server.getPrimaryService(NUS_SVC);
+    const txChar=await svc.getCharacteristic(NUS_TX);
+    rxChar=await svc.getCharacteristic(NUS_RX);
+    txChar.addEventListener('characteristicvaluechanged',onNotify);
+    await txChar.startNotifications();
+    applyState('idle');
+    await renderPresets();
+    const s=await cmd('status');
+    if(s.config)setCfg(s.config);
+    if(s.running){applyState('playing');startTimer();}
+    tryMatchPreset();
+  }catch(e){msg('cm','Connect failed: '+e.message,4000);}
+}
+
+function bleDisconnect(){
+  if(bleDevice&&bleDevice.gatt.connected)bleDevice.gatt.disconnect();
+  rxChar=null; applyState('disconnected'); stopTimer();
+}
+
+// =============================================================
+// Transport
+// =============================================================
+async function cmd(name,body={}){
+  const raw=await bleRaw({cmd:name,...body});
+  try{return JSON.parse(raw);}catch(e){return{};}
+}
+
+async function cmdText(name){
+  return bleRaw({cmd:name});
+}
+
+// =============================================================
+// State machine   'disconnected' | 'idle' | 'playing'
+// =============================================================
+let uiState='disconnected';
+
+function applyState(state){
+  uiState=state;
+  const D=state==='disconnected',I=state==='idle',P=state==='playing';
+  $('badge').textContent=P?'Running':'Stopped';
+  $('badge').className='badge '+(P?'on':'off');
+  const ab=$('btn-audio');
+  ab.disabled=D; ab.textContent=P?'\u25a0 Stop':'\u25b6 Start'; ab.className='btn '+(P?'r':'g');
+  $('preset-select').disabled=!I;
+  $('btn-new-pre').disabled=!I;
+  $('btn-exp-all').disabled=D;
+  $('btn-imp').disabled=!I;
+  $('ble-badge').textContent=D?'Disconnected':'Connected';
+  $('ble-badge').className='badge '+(D?'ble-off':'ble-on');
+  $('btn-connect').style.display=D?'':'none';
+  $('btn-disconnect').style.display=D?'none':'';
+  if(D){
+    allPresets=[];currentCfg=null;
+    $('preset-select').innerHTML='<option value="">-- Connect to load presets --</option>';
+    $('cfg-display').innerHTML='<em style="color:#bbb;font-size:.9em">Connect to see configuration</em>';
+    $('pl').innerHTML='<em style="color:#bbb">Connect to load presets</em>';
+    $('elapsed').textContent='';
+  }
+}
+
+function msg(id,text,ms=3000){$(id).textContent=text;if(ms)setTimeout(()=>$(id).textContent='',ms);}
+
+// =============================================================
+// Elapsed timer + session-end poll
+// =============================================================
+let _timerStart=null,_timerTick=null,_pollTick=null;
+
+function startTimer(){
+  _timerStart=Date.now();
+  clearInterval(_timerTick);
+  _timerTick=setInterval(()=>{
+    const t=Math.floor((Date.now()-_timerStart)/1000);
+    $('elapsed').textContent=String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+  },1000);
+  clearInterval(_pollTick);
+  _pollTick=setInterval(async()=>{
+    if(!rxChar||pendingResolve)return;
+    try{const s=await cmd('status');if(!s.running){applyState('idle');stopTimer();}}catch(e){}
+  },10000);
+}
+
+function stopTimer(){
+  clearInterval(_timerTick);_timerTick=null;_timerStart=null;
+  clearInterval(_pollTick);_pollTick=null;
+  $('elapsed').textContent='';
+}
+
+// =============================================================
+// Audio toggle
+// =============================================================
+async function audioToggle(){
+  const action=uiState==='playing'?'stop':'start';
+  try{
+    await cmd(action);
+    const s=await cmd('status');
+    if(s.running){applyState('playing');startTimer();}else{applyState('idle');stopTimer();}
+  }catch(e){msg('cm','Error: '+e.message);}
+}
+
+// =============================================================
+// Band table helpers
+// =============================================================
+function makeRow(s,e,r,tbodyId,db){
+  s=s!=null?s:''; e=e!=null?e:''; r=r!=null?r:''; db=db!=null?db:'';
+  const centre=(s!==''&&e!=='')?Math.round((+s+ +e)/2):'';
+  const tid="'"+tbodyId+"'";
+  const tr=document.createElement('tr');
+  tr.innerHTML=
+    '<td><div class="ord">'+
+      '<button onclick="moveRow(this,-1)" title="Up">&#9650;</button>'+
+      '<button onclick="moveRow(this,1)" title="Down">&#9660;</button>'+
+    '</div></td>'+
+    '<td><input type="number" value="'+s+'" min="20" max="22000" oninput="updRow(this)"></td>'+
+    '<td><input type="number" value="'+e+'" min="20" max="22000" oninput="updRow(this)"></td>'+
+    '<td><input type="number" value="'+r+'" min="0" max="5000" placeholder="0"></td>'+
+    '<td><input type="number" value="'+db+'" min="-40" max="40" step="0.5" placeholder="0"></td>'+
+    '<td class="cc" style="color:#888">'+centre+'</td>'+
+    '<td><button class="sm r" onclick="this.closest(\'tr\').remove()">&times;</button></td>';
+  return tr;
+}
+
+function addRow(s,e,r,tbodyId,db){$(tbodyId).appendChild(makeRow(s,e,r,tbodyId,db));}
+
+function moveRow(btn,dir){
+  const tr=btn.closest('tr'),tbody=tr.parentNode;
+  if(dir===-1&&tr.previousElementSibling)tbody.insertBefore(tr,tr.previousElementSibling);
+  else if(dir===1&&tr.nextElementSibling)tbody.insertBefore(tr.nextElementSibling,tr);
+}
+
+function updRow(inp){
+  const r=inp.closest('tr'),ins=r.querySelectorAll('input');
+  r.querySelector('.cc').textContent=(+ins[0].value&&+ins[1].value)?Math.round((+ins[0].value+ +ins[1].value)/2):'';
+}
+
+function makeBandTable(tbodyId){
+  return '<table><thead><tr>'+
+    '<th style="width:1.8em"></th><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Rolloff&nbsp;Hz</th><th>dB</th><th>Centre</th><th></th>'+
+    '</tr></thead><tbody id="'+tbodyId+'"></tbody></table>'+
+    '<button class="btn dg sm" style="margin-top:.4em" onclick="addRow(null,null,null,\''+tbodyId+'\',null)">+ Add Band</button>';
+}
+
+function readBands(tbodyId){
+  const bands=[];
+  $(tbodyId).querySelectorAll('tr').forEach(r=>{
+    const i=r.querySelectorAll('input'),s=+i[0].value,e=+i[1].value,ro=+i[2].value||0,db=+i[3].value||0;
+    if(s>0&&e>s){const b={s,e};if(ro>0)b.r=ro;if(db!==0)b.db=db;bands.push(b);}
+  });
+  return bands;
+}
+
+// =============================================================
+// Config display
+// =============================================================
+let allPresets=[],openEditIdx=-1,currentCfg=null;
+const esc=s=>String(s).replace(/['"<>&]/g,c=>({'\'':'&#39;','"':'&quot;','<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+
+function tryMatchPreset(){
+  if(!currentCfg||!allPresets.length)return;
+  const cb=currentCfg.bands||[],sel=$('preset-select');
+  for(const p of allPresets){
+    const pb=p.bands||[];
+    if(pb.length!==cb.length)continue;
+    if(p.pulse_delay!==currentCfg.pulse_delay||p.duration_ms!==currentCfg.duration_ms||
+       p.silence_ms!==currentCfg.silence_ms||p.session_min!==currentCfg.session_min)continue;
+    if(pb.every((b,i)=>b.s===cb[i].s&&b.e===cb[i].e&&(b.r||0)===(cb[i].r||0))){sel.value=p.name;return;}
+  }
+  sel.value='';
+}
+
+function setCfg(c){
+  currentCfg=c;
+  const bands=c.bands||[];
+  const totalW=bands.reduce((t,b)=>b.s>0&&b.e>b.s?t+b.e-b.s+2*(b.r||0):t,0);
+  $('cfg-display').innerHTML=
+    '<table><thead><tr><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Rolloff&nbsp;Hz</th><th>dB</th><th>Centre</th></tr></thead><tbody>'+
+    bands.map(b=>'<tr><td>'+b.s+'</td><td>'+b.e+'</td><td>'+(b.r||0)+'</td><td>'+(b.db||0)+'</td><td style="color:#888">'+Math.round((b.s+b.e)/2)+'</td></tr>').join('')+
+    '</tbody></table>'+
+    (totalW?'<p style="font-size:.83em;color:#555;margin:.4em 0 .2em">Total width: <b>'+totalW+' Hz</b></p>':'')+
+    '<div class="g2" style="margin-top:.5em">'+
+      '<div><span style="font-size:.83em;color:#555;font-weight:bold">Pulse Delay</span><br><b>'+c.pulse_delay+'</b> <span style="font-size:.82em;color:#888">&mu;s</span></div>'+
+      '<div><span style="font-size:.83em;color:#555;font-weight:bold">Burst Duration</span><br><b>'+c.duration_ms+'</b> <span style="font-size:.82em;color:#888">ms</span></div>'+
+      '<div><span style="font-size:.83em;color:#555;font-weight:bold">Silence</span><br><b>'+c.silence_ms+'</b> <span style="font-size:.82em;color:#888">ms</span></div>'+
+      '<div><span style="font-size:.83em;color:#555;font-weight:bold">Session</span><br><b>'+c.session_min+'</b> <span style="font-size:.82em;color:#888">min</span></div>'+
+      '<div><span style="font-size:.83em;color:#555;font-weight:bold">Amplitude</span><br><b>'+(c.amplitude_db||0)+'</b> <span style="font-size:.82em;color:#888">dB</span></div>'+
+    '</div>';
+  tryMatchPreset();
+}
+
+
+// =============================================================
+// Preset dropdown
+// =============================================================
+async function loadSelectedPreset(){
+  const name=$('preset-select').value;
+  if(!name){
+    $('cfg-display').innerHTML='';
+    $('btn-audio').disabled=true;
+    return;
+  }
+  try{
+    const d=await cmd('load_preset',{name});
+    if(d.config){setCfg(d.config);$('btn-audio').disabled=false;}
+    msg('cm','Loaded "'+name+'"');
+  }catch(e){msg('cm','Error: '+e.message);}
+}
+
+// =============================================================
+// Preset manager
+// =============================================================
+async function renderPresets(){
+  try{
+    const ps=await cmd('get_presets');
+    allPresets=Array.isArray(ps)?ps:[];
+    openEditIdx=-1;
+    $('preset-select').innerHTML='<option value="">-- Select a preset --</option>'+
+      allPresets.map(p=>'<option value="'+esc(p.name)+'">'+esc(p.name)+' ('+(p.bands||[]).length+' bands)</option>').join('');
+    tryMatchPreset();
+    const el=$('pl');
+    if(!allPresets.length){el.innerHTML='<em style="color:#bbb;font-size:.9em">No presets saved</em>';return;}
+    el.innerHTML=allPresets.map((p,i)=>
+      '<div>'+
+        '<div class="pi" id="pi-'+i+'">'+
+          '<div class="ord" style="margin-right:.4em">'+
+            '<button onclick="movePreset('+i+',-1)" '+(i===0?'disabled':'')+'>&#9650;</button>'+
+            '<button onclick="movePreset('+i+',1)" '+(i===allPresets.length-1?'disabled':'')+'>&#9660;</button>'+
+          '</div>'+
+          '<span class="pn"><b>'+esc(p.name)+'</b> <small style="color:#aaa">'+(p.bands||[]).length+' band'+((p.bands||[]).length!==1?'s':'')+'</small></span>'+
+          '<button class="sm or" onclick="toggleEdit('+i+')" id="eb-'+i+'">Edit</button>'+
+          '<button class="sm r" onclick="delPre(\''+esc(p.name)+'\')">Del</button>'+
+        '</div>'+
+        '<div id="ep-'+i+'" style="display:none" class="edit-panel">'+
+          '<h3 style="margin-top:0">Edit: '+esc(p.name)+'</h3>'+
+          makeBandTable('ebt'+i)+
+          '<hr><div class="g2">'+
+            '<div><label>Pulse Delay (&mu;s)</label><input id="epd'+i+'" type="number" min="100" max="50000"></div>'+
+            '<div><label>Burst Duration (ms)</label><input id="edm'+i+'" type="number" min="1" max="50"></div>'+
+            '<div><label>Silence (ms)</label><input id="esi'+i+'" type="number" min="1" max="5000"></div>'+
+            '<div><label>Session (min)</label><input id="ese'+i+'" type="number" min="1" max="240"></div>'+
+          '</div>'+
+          '<div class="row" style="margin-top:.6em">'+
+            '<button class="btn g" onclick="saveEditPreset('+i+')">&#10003; Save</button>'+
+            '<button class="btn dg" onclick="closeEdit('+i+')">Cancel</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>'
+    ).join('');
+  }catch(e){$('pl').textContent='Error loading presets';}
+}
+
+function toggleEdit(i){
+  if(openEditIdx===i){closeEdit(i);return;}
+  if(openEditIdx>=0)closeEdit(openEditIdx);
+  openEditIdx=i;
+  const p=allPresets[i];
+  $('ep-'+i).style.display='';$('eb-'+i).textContent='Close';
+  const tid='ebt'+i; $(tid).innerHTML='';
+  (p.bands||[]).forEach(b=>addRow(b.s,b.e,b.r,tid,b.db));
+  $('epd'+i).value=p.pulse_delay;$('edm'+i).value=p.duration_ms;
+  $('esi'+i).value=p.silence_ms;$('ese'+i).value=p.session_min;
+}
+
+function closeEdit(i){
+  $('ep-'+i).style.display='none';
+  const eb=$('eb-'+i);if(eb)eb.textContent='Edit';
+  if(openEditIdx===i)openEditIdx=-1;
+}
+
+async function movePreset(i,dir){
+  const j=i+dir;
+  if(j<0||j>=allPresets.length)return;
+  [allPresets[i],allPresets[j]]=[allPresets[j],allPresets[i]];
+  const names=allPresets.map(p=>p.name);
+  try{await cmd('reorder_presets',{order:names});await renderPresets();}
+  catch(e){msg('pm','Error: '+e.message);}
+}
+
+async function saveEditPreset(i){
+  const p=allPresets[i];
+  const cfg={name:p.name,bands:readBands('ebt'+i),
+    pulse_delay:+$('epd'+i).value,duration_ms:+$('edm'+i).value,
+    silence_ms:+$('esi'+i).value,session_min:+$('ese'+i).value};
+  try{await cmd('save_preset',cfg);msg('pm','Preset "'+p.name+'" updated');await renderPresets();}
+  catch(e){msg('pm','Error: '+e.message);}
+}
+
+function toggleNewPreset(){
+  const form=$('new-preset-form');
+  if(form.style.display!=='none'){cancelNewPreset();return;}
+  $('np-bands-wrap').innerHTML=makeBandTable('npbt');
+  $('np-name').value='';$('np-pd').value=8000;$('np-dm').value=10;$('np-si').value=190;$('np-se').value=30;
+  form.style.display='';$('btn-new-pre').textContent='\u2715 Cancel';
+}
+
+function cancelNewPreset(){$('new-preset-form').style.display='none';$('btn-new-pre').textContent='+ New';}
+
+async function saveNewPreset(){
+  const name=$('np-name').value.trim();
+  if(!name){msg('pm','Enter a preset name');return;}
+  const cfg={name,bands:readBands('npbt'),
+    pulse_delay:+$('np-pd').value,duration_ms:+$('np-dm').value,
+    silence_ms:+$('np-si').value,session_min:+$('np-se').value};
+  try{await cmd('save_preset',cfg);msg('pm','Preset "'+name+'" created');cancelNewPreset();await renderPresets();}
+  catch(e){msg('pm','Error: '+e.message);}
+}
+
+async function delPre(name){
+  if(!confirm('Delete preset "'+name+'"?'))return;
+  try{await cmd('delete_preset',{name});await renderPresets();}
+  catch(e){msg('pm','Error: '+e.message);}
+}
+
+// =============================================================
+// Backup & Restore
+// =============================================================
+async function exportBackup(){
+  try{const t=await cmdText('export_all');$('backup-text').value=t;msg('bkem','Exported. Copy the text above to save it.');}
+  catch(e){msg('bkem','Error: '+e.message);}
+}
+
+async function importBackup(){
+  const text=$('backup-text').value.trim();
+  if(!text){msg('bkem','Paste JSON into the text box first');return;}
+  let presets;
+  try{presets=JSON.parse(text);if(!Array.isArray(presets))throw 0;}
+  catch(e){msg('bkem','Invalid JSON array');return;}
+  msg('bkem','Restoring '+presets.length+' preset(s)…',0);
+  let ok=0,fail=0;
+  for(const p of presets){
+    if(!p.name){fail++;continue;}
+    try{await cmd('save_preset',p);ok++;}catch(e){fail++;}
+  }
+  msg('bkem','Restored '+ok+(fail?', '+fail+' failed.':'.'));
+  await renderPresets();
+}
+
+// =============================================================
+// Export as Code
+// =============================================================
+async function exportCurrent(){
+  const name=$('en').value.trim()||'my_config';
+  const t=await bleRaw({cmd:'export_current',name});
+  $('ex').value='[\n  '+t.trim()+'\n]';
+}
+
+async function exportAll(){const t=await cmdText('export_all');$('ex').value=t.trim();}
+
+function copyEx(){
+  const ta=$('ex');ta.select();ta.setSelectionRange(0,99999);
+  document.execCommand('copy');msg('exem','Copied!');
+}
+
+// =============================================================
+// Init
+// =============================================================
+applyState('disconnected');
+</script>
+</body></html>
