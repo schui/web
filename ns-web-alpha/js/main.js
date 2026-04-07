@@ -99,6 +99,7 @@ class NoiseShaperweb {
             rangeTextArea: document.getElementById('rangeTextArea'),
             convertRangeBtn: document.getElementById('convertRangeBtn'),
             flatWidthMultiplier: document.getElementById('flatWidthMultiplier'),
+            defaultRolloff: document.getElementById('defaultRolloff'),
             totalFreq: document.getElementById('totalFreq')
         };
         
@@ -1257,14 +1258,17 @@ class NoiseShaperweb {
             }
 
             const multiplier = parseFloat(this.elements.flatWidthMultiplier.value) || 1.0;
+            const defaultRolloff = parseFloat(this.elements.defaultRolloff.value) || 0;
 
             const tracks = ranges.map((range, index) => {
                 const start = range.start || 0;
                 const end = range.end || 0;
-                const centerFreq = Math.round((start + end) / 2);
-                const width = Math.round((end - start) / 2);
-                const flatWidth = Math.round((end - start) * multiplier);
                 const gain = typeof range.gain === 'number' ? range.gain : 0;
+                const rolloff = typeof range.rolloff === 'number' ? range.rolloff : defaultRolloff;
+
+                const centerFreq = Math.round((start + end) / 2);
+                const flatWidth = Math.round(((end - start) / 2) * multiplier);
+                const width = Math.round(flatWidth + rolloff);
 
                 return {
                     id: index,

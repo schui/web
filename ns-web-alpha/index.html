@@ -177,18 +177,22 @@
                 
                 <div class="json-modal-range-section">
                     <h4 class="json-modal-subtitle">Range to Tracks Converter</h4>
-                    <p class="json-modal-description">Input ranges (<code>{ start, end, gain }</code>) to generate tracks with plateau filters.</p>
+                    <p class="json-modal-description">Input ranges (<code>{ start, end, gain, rolloff }</code>) to generate tracks with plateau filters.</p>
                     <textarea id="rangeTextArea" class="json-range-textarea" placeholder='[
   {"start": 2000, "end": 3000},
-  {"start": 3000, "end": 4000, "gain": 0.7}
+  {"start": 3000, "end": 4000, "gain": 0.7, "rolloff": 50}
 ]' spellcheck="false">[
   {"start": 2000, "end": 3000},
-  {"start": 3000, "end": 4000, "gain": 0.7}
+  {"start": 3000, "end": 4000, "gain": 0.7, "rolloff": 50}
 ]</textarea>
                     <div class="range-controls">
                         <div class="range-control-group">
                             <label for="flatWidthMultiplier" class="range-label">Flat Width Multiplier</label>
                             <input type="number" id="flatWidthMultiplier" class="range-number-input" value="1.0" step="0.01" min="0" max="2">
+                        </div>
+                        <div class="range-control-group">
+                            <label for="defaultRolloff" class="range-label">Default Rolloff (Hz)</label>
+                            <input type="number" id="defaultRolloff" class="range-number-input" value="100" step="1" min="0" max="2000">
                         </div>
                         <button id="convertRangeBtn" class="range-convert-btn">Convert to Track JSON</button>
                     </div>
