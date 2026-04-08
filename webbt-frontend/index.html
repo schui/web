@@ -279,7 +279,7 @@ function updRow(inp){
 
 function makeBandTable(tbodyId){
   return '<table><thead><tr>'+
-    '<th style="width:1.8em"></th><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Rolloff&nbsp;Hz</th><th>dB</th><th>Centre</th><th></th>'+
+    '<th style="width:1.8em"></th><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Rolloff&nbsp;Hz</th><th>Gain</th><th>Centre</th><th></th>'+
     '</tr></thead><tbody id="'+tbodyId+'"></tbody></table>'+
     '<button class="btn dg sm" style="margin-top:.4em" onclick="addRow(null,null,null,\''+tbodyId+'\',null)">+ Add Band</button>';
 }
@@ -288,7 +288,7 @@ function readBands(tbodyId){
   const bands=[];
   $(tbodyId).querySelectorAll('tr').forEach(r=>{
     const i=r.querySelectorAll('input'),s=+i[0].value,e=+i[1].value,ro=+i[2].value||0,db=+i[3].value||0;
-    if(s>0&&e>s){const b={s,e};if(ro>0)b.r=ro;if(db!==0)b.db=db;bands.push(b);}
+    if(s>0&&e>s){const b={start:s,end:e};if(ro>0)b.rolloff=ro;if(db!==0)b.gain=db;bands.push(b);}
   });
   return bands;
 }
@@ -307,7 +307,7 @@ function tryMatchPreset(){
     if(pb.length!==cb.length)continue;
     if(p.pulse_delay!==currentCfg.pulse_delay||p.duration_ms!==currentCfg.duration_ms||
        p.silence_ms!==currentCfg.silence_ms||p.session_min!==currentCfg.session_min)continue;
-    if(pb.every((b,i)=>b.s===cb[i].s&&b.e===cb[i].e&&(b.r||0)===(cb[i].r||0))){sel.value=p.name;return;}
+    if(pb.every((b,i)=>b.start===cb[i].start&&b.end===cb[i].end&&(b.rolloff||0)===(cb[i].rolloff||0))){sel.value=p.name;return;}
   }
   sel.value='';
 }
@@ -315,10 +315,10 @@ function tryMatchPreset(){
 function setCfg(c){
   currentCfg=c;
   const bands=c.bands||[];
-  const totalW=bands.reduce((t,b)=>b.s>0&&b.e>b.s?t+b.e-b.s+2*(b.r||0):t,0);
+  const totalW=bands.reduce((t,b)=>b.start>0&&b.end>b.start?t+b.end-b.start+2*(b.rolloff||0):t,0);
   $('cfg-display').innerHTML=
-    '<table><thead><tr><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Rolloff&nbsp;Hz</th><th>dB</th><th>Centre</th></tr></thead><tbody>'+
-    bands.map(b=>'<tr><td>'+b.s+'</td><td>'+b.e+'</td><td>'+(b.r||0)+'</td><td>'+(b.db||0)+'</td><td style="color:#888">'+Math.round((b.s+b.e)/2)+'</td></tr>').join('')+
+    '<table><thead><tr><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Rolloff&nbsp;Hz</th><th>Gain</th><th>Centre</th></tr></thead><tbody>'+
+    bands.map(b=>'<tr><td>'+b.start+'</td><td>'+b.end+'</td><td>'+(b.rolloff||0)+'</td><td>'+(b.gain||0)+'</td><td style="color:#888">'+Math.round((b.start+b.end)/2)+'</td></tr>').join('')+
     '</tbody></table>'+
     (totalW?'<p style="font-size:.83em;color:#555;margin:.4em 0 .2em">Total width: <b>'+totalW+' Hz</b></p>':'')+
     '<div class="g2" style="margin-top:.5em">'+
@@ -399,7 +399,7 @@ function toggleEdit(i){
   const p=allPresets[i];
   $('ep-'+i).style.display='';$('eb-'+i).textContent='Close';
   const tid='ebt'+i; $(tid).innerHTML='';
-  (p.bands||[]).forEach(b=>addRow(b.s,b.e,b.r,tid,b.db));
+  (p.bands||[]).forEach(b=>addRow(b.start,b.end,b.rolloff,tid,b.gain));
   $('epd'+i).value=p.pulse_delay;$('edm'+i).value=p.duration_ms;
   $('esi'+i).value=p.silence_ms;$('ese'+i).value=p.session_min;
 }
