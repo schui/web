@@ -219,7 +219,8 @@ function startTimer(){
   clearInterval(_pollTick);
   _pollTick=setInterval(async()=>{
     if(!rxChar||pendingResolve)return;
-    try{const s=await cmd('status');if(!s.running){applyState('idle');stopTimer();}}catch(e){}
+    try{const s=await cmd('status');if(!s.running){applyState('idle');stopTimer();}}
+    catch(e){if(!bleDevice||!bleDevice.gatt.connected){rxChar=null;applyState('disconnected');stopTimer();}}
   },10000);
 }
 
