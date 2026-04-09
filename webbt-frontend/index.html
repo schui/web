@@ -315,12 +315,13 @@ function tryMatchPreset(){
 function setCfg(c){
   currentCfg=c;
   const bands=c.bands||[];
-  const totalW=bands.reduce((t,b)=>b.start>0&&b.end>b.start?t+b.end-b.start+2*(b.rolloff||0):t,0);
+  const flatW=bands.reduce((t,b)=>b.start>0&&b.end>b.start?t+b.end-b.start:t,0);
+  const rollW=bands.reduce((t,b)=>b.start>0&&b.end>b.start?t+2*(b.rolloff||0):t,0);
   $('cfg-display').innerHTML=
     '<table><thead><tr><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Rolloff&nbsp;Hz</th><th>Gain</th><th>Centre</th></tr></thead><tbody>'+
     bands.map(b=>'<tr><td>'+b.start+'</td><td>'+b.end+'</td><td>'+(b.rolloff||0)+'</td><td>'+(b.gain||0)+'</td><td style="color:#888">'+Math.round((b.start+b.end)/2)+'</td></tr>').join('')+
     '</tbody></table>'+
-    (totalW?'<p style="font-size:.83em;color:#555;margin:.4em 0 .2em">Total width: <b>'+totalW+' Hz</b></p>':'')+
+    (flatW?'<p style="font-size:.83em;color:#555;margin:.4em 0 .2em">Flattop width: <b>'+flatW+' Hz</b> &nbsp; Rolloff width: <b>'+rollW+' Hz</b></p>':'')+
     '<div class="g2" style="margin-top:.5em">'+
       '<div><span style="font-size:.83em;color:#555;font-weight:bold">Pulse Delay</span><br><b>'+c.pulse_delay+'</b> <span style="font-size:.82em;color:#888">&mu;s</span></div>'+
       '<div><span style="font-size:.83em;color:#555;font-weight:bold">Burst Duration</span><br><b>'+c.duration_ms+'</b> <span style="font-size:.82em;color:#888">ms</span></div>'+
