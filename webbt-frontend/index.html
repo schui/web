@@ -103,6 +103,25 @@ details.cpanel .cpanel-body{padding-top:.7em;border-top:1px solid #eee;margin-to
   </details>
 </div>
 
+<div class="card">
+  <details id="panel-webhook" class="cpanel">
+    <summary>&#128279; Webhook Logging</summary>
+    <div class="cpanel-body">
+      <div style="display:flex;align-items:center;gap:.6em;margin-bottom:.7em">
+        <input type="checkbox" id="wh-enabled" style="width:auto;margin:0;width:1.1em;height:1.1em;cursor:pointer" onchange="whSave()">
+        <label for="wh-enabled" style="margin:0;font-size:.92em;cursor:pointer">Log treatment starts to webhook</label>
+      </div>
+      <label>Webhook URL</label>
+      <input id="wh-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" oninput="whSave()">
+      <div class="row" style="margin-top:.6em">
+        <button class="btn b" onclick="whTest()">Send Test</button>
+      </div>
+      <p class="msg" id="whem"></p>
+      <p style="font-size:.78em;color:#999;margin:.5em 0 0">Settings saved in browser. See <code>webhook_apps_script.gs</code> for Google Sheets setup.</p>
+    </div>
+  </details>
+</div>
+
 
 <script>
 const $=id=>document.getElementById(id);
@@ -238,7 +257,8 @@ async function audioToggle(){
   try{
     await cmd(action);
     const s=await cmd('status');
-    if(s.running){applyState('playing');startTimer();}else{applyState('idle');stopTimer();}
+    if(s.running){applyState('playing');startTimer();whFire('session_start');}
+    else{applyState('idle');stopTimer();}
   }catch(e){msg('cm','Error: '+e.message);}
 }
 
@@ -496,8 +516,56 @@ function copyEx(){
 }
 
 // =============================================================
+// Webhook
+// =============================================================
+function whLoad(){
+  $('wh-url').value=localStorage.getItem('wh_url')||'';
+  $('wh-enabled').checked=localStorage.getItem('wh_enabled')==='1';
+}
+
+function whSave(){
+  localStorage.setItem('wh_url',$('wh-url').value.trim());
+  localStorage.setItem('wh_enabled',$('wh-enabled').checked?'1':'0');
+}
+
+function whPayload(eventType){
+  const cfg=currentCfg||{};
+  const freqs=(cfg.bands||[]).map(b=>b.start+'-'+b.end+(b.rolloff?' r:'+b.rolloff:'')+' Hz').join(', ');
+  return{
+    timestamp:new Date().toISOString(),
+    event:eventType,
+    preset:$('preset-select').value||'(unknown)',
+    device:bleDevice?bleDevice.name:'',
+    session_min:cfg.session_min||'',
+    frequencies:freqs
+  };
+}
+
+async function whFire(eventType){
+  if(!$('wh-enabled').checked)return;
+  const url=$('wh-url').value.trim();
+  if(!url)return;
+  try{
+    await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify(whPayload(eventType)),headers:{'Content-Type':'text/plain'}});
+  }catch(e){
+    msg('whem','Webhook error: '+e.message,5000);
+  }
+}
+
+async function whTest(){
+  const url=$('wh-url').value.trim();
+  if(!url){msg('whem','Enter a URL first',3000);return;}
+  msg('whem','Sending\u2026',0);
+  try{
+    await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify({timestamp:new Date().toISOString(),event:'test',preset:'test-preset',device:'test-device',session_min:30,frequencies:'100-500 Hz, 1000-2000 Hz'}),headers:{'Content-Type':'text/plain'}});
+    msg('whem','Test sent — check your sheet.',5000);
+  }catch(e){msg('whem','Error: '+e.message,5000);}
+}
+
+// =============================================================
 // Init
 // =============================================================
 applyState('disconnected');
+whLoad();
 </script>
 </body></html>
