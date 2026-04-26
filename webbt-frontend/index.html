@@ -170,7 +170,7 @@ async function bleConnect(){
     await renderPresets();
     const s=await cmd('status');
     if(s.config)setCfg(s.config);
-    if(s.running){applyState('playing');startTimer();}
+    if(s.running){applyState('playing');startTimer(s.elapsed_sec||0);}
     tryMatchPreset();
   }catch(e){msg('cm','Connect failed: '+e.message,4000);}
 }
@@ -227,13 +227,15 @@ function msg(id,text,ms=3000){$(id).textContent=text;if(ms)setTimeout(()=>$(id).
 // Elapsed timer + session-end poll
 // =============================================================
 let _timerStart=null,_timerTick=null,_pollTick=null;
+const _fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
 
-function startTimer(){
-  _timerStart=Date.now();
+function startTimer(elapsedSec=0){
+  _timerStart=Date.now()-elapsedSec*1000;
   clearInterval(_timerTick);
   _timerTick=setInterval(()=>{
     const t=Math.floor((Date.now()-_timerStart)/1000);
-    $('elapsed').textContent=String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+    const total=currentCfg&&currentCfg.session_min?currentCfg.session_min*60:0;
+    $('elapsed').textContent=_fmt(t)+(total?' / '+_fmt(total):'');
   },1000);
   clearInterval(_pollTick);
   _pollTick=setInterval(async()=>{
