@@ -77,7 +77,6 @@ details.cpanel .cpanel-body{padding-top:.7em;border-top:1px solid #eee;margin-to
           <div><label>Burst Duration (ms)</label><input id="np-dm" type="number" value="10" min="1" max="50"></div>
           <div><label>Silence (ms)</label><input id="np-si" type="number" value="190" min="1" max="5000"></div>
           <div><label>Session (min)</label><input id="np-se" type="number" value="30" min="1" max="240"></div>
-          <div><label>Amplitude (dB)</label><input id="np-am" type="number" value="0" min="-40" max="6" step="0.5"></div>
         </div>
         <div class="row" style="margin-top:.6em">
           <button class="btn g" onclick="saveNewPreset()">&#10003; Save Preset</button>
@@ -350,7 +349,6 @@ function setCfg(c){
       '<div><span style="font-size:.83em;color:#555;font-weight:bold">Burst Duration</span><br><b>'+c.duration_ms+'</b> <span style="font-size:.82em;color:#888">ms</span></div>'+
       '<div><span style="font-size:.83em;color:#555;font-weight:bold">Silence</span><br><b>'+c.silence_ms+'</b> <span style="font-size:.82em;color:#888">ms</span></div>'+
       '<div><span style="font-size:.83em;color:#555;font-weight:bold">Session</span><br><b>'+c.session_min+'</b> <span style="font-size:.82em;color:#888">min</span></div>'+
-      '<div><span style="font-size:.83em;color:#555;font-weight:bold">Amplitude</span><br><b>'+(c.amplitude_db||0)+'</b> <span style="font-size:.82em;color:#888">dB</span></div>'+
     '</div>';
   tryMatchPreset();
 }
@@ -405,7 +403,6 @@ async function renderPresets(){
             '<div><label>Burst Duration (ms)</label><input id="edm'+i+'" type="number" min="1" max="50"></div>'+
             '<div><label>Silence (ms)</label><input id="esi'+i+'" type="number" min="1" max="5000"></div>'+
             '<div><label>Session (min)</label><input id="ese'+i+'" type="number" min="1" max="240"></div>'+
-            '<div><label>Amplitude (dB)</label><input id="eam'+i+'" type="number" min="-40" max="6" step="0.5"></div>'+
           '</div>'+
           '<div class="row" style="margin-top:.6em">'+
             '<button class="btn g" onclick="saveEditPreset('+i+')">&#10003; Save</button>'+
@@ -427,7 +424,6 @@ function toggleEdit(i){
   (p.bands||[]).forEach(b=>addRow(b.start,b.end,b.rolloff,tid,b.gain));
   $('epd'+i).value=p.pulse_delay;$('edm'+i).value=p.duration_ms;
   $('esi'+i).value=p.silence_ms;$('ese'+i).value=p.session_min;
-  $('eam'+i).value=p.amplitude_db||0;
 }
 
 function closeEdit(i){
@@ -450,7 +446,7 @@ async function saveEditPreset(i){
   const cfg={name:p.name,bands:readBands('ebt'+i),
     pulse_delay:+$('epd'+i).value,duration_ms:+$('edm'+i).value,
     silence_ms:+$('esi'+i).value,session_min:+$('ese'+i).value,
-    amplitude_db:+$('eam'+i).value};
+  };
   try{await cmd('save_preset',cfg);msg('pm','Preset "'+p.name+'" updated');await renderPresets();}
   catch(e){msg('pm','Error: '+e.message);}
 }
@@ -459,7 +455,7 @@ function toggleNewPreset(){
   const form=$('new-preset-form');
   if(form.style.display!=='none'){cancelNewPreset();return;}
   $('np-bands-wrap').innerHTML=makeBandTable('npbt');
-  $('np-name').value='';$('np-pd').value=8000;$('np-dm').value=10;$('np-si').value=190;$('np-se').value=30;$('np-am').value=0;
+  $('np-name').value='';$('np-pd').value=8000;$('np-dm').value=10;$('np-si').value=190;$('np-se').value=30;
   form.style.display='';$('btn-new-pre').textContent='\u2715 Cancel';
 }
 
@@ -471,7 +467,7 @@ async function saveNewPreset(){
   const cfg={name,bands:readBands('npbt'),
     pulse_delay:+$('np-pd').value,duration_ms:+$('np-dm').value,
     silence_ms:+$('np-si').value,session_min:+$('np-se').value,
-    amplitude_db:+$('np-am').value};
+  };
   try{await cmd('save_preset',cfg);msg('pm','Preset "'+name+'" created');cancelNewPreset();await renderPresets();}
   catch(e){msg('pm','Error: '+e.message);}
 }
