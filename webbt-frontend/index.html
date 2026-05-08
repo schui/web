@@ -535,7 +535,7 @@ function whPayload(eventType){
   const cfg=currentCfg||{};
   const freqs=(cfg.bands||[]).map(b=>b.start+'-'+b.end+(b.rolloff?' r:'+b.rolloff:'')+' Hz').join(', ');
   return{
-    timestamp:new Date().toISOString(),
+    timestamp:(()=>{const d=new Date();const pad=n=>String(n).padStart(2,'0');const h=d.getHours();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(h%12||12)+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())+' '+(h<12?'AM':'PM');})(),
     event:eventType,
     preset:$('preset-select').value||'(unknown)',
     device:bleDevice?bleDevice.name:'',
