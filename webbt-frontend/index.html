@@ -51,6 +51,7 @@ details.cpanel .cpanel-body{padding-top:.7em;border-top:1px solid #eee;margin-to
   <select id="preset-select" onchange="loadSelectedPreset()" disabled>
     <option value="">-- Select a preset --</option>
   </select>
+  <canvas id="spectrum-canvas" style="display:none;width:100%;border-radius:6px;margin-top:.6em" height="110"></canvas>
   <div id="cfg-display" style="margin-top:.7em"><em style="color:#bbb;font-size:.9em">Connect to see configuration</em></div>
   <p class="msg" id="cm"></p>
   <div class="row" style="margin-top:.5em">
@@ -216,6 +217,7 @@ function applyState(state){
     allPresets=[];currentCfg=null;
     $('preset-select').innerHTML='<option value="">-- Connect to load presets --</option>';
     $('cfg-display').innerHTML='<em style="color:#bbb;font-size:.9em">Connect to see configuration</em>';
+    $('spectrum-canvas').style.display='none';
     $('pl').innerHTML='<em style="color:#bbb">Connect to load presets</em>';
     $('elapsed').textContent='';
   }
@@ -317,6 +319,71 @@ function readBands(tbodyId){
 }
 
 // =============================================================
+// Spectrum visualiser
+// =============================================================
+function drawSpectrum(bands){
+  const canvas=$('spectrum-canvas');
+  if(!bands||!bands.length){canvas.style.display='none';return;}
+  canvas.style.display='';
+  const W=canvas.width=canvas.offsetWidth||520,H=canvas.height=110;
+  const ctx=canvas.getContext('2d');
+
+  // Frequency range with padding
+  let fMin=Infinity,fMax=-Infinity;
+  for(const b of bands){fMin=Math.min(fMin,b.start);fMax=Math.max(fMax,b.end);}
+  const pad=(fMax-fMin)*0.1||100;
+  fMin=Math.max(0,fMin-pad); fMax=fMax+pad;
+
+  // Linear-scale x mapping
+  const freqToX=f=>(f-fMin)/(fMax-fMin)*W;
+
+  // Compute amplitude at each pixel (flat top only, no rolloff)
+  const amps=new Float32Array(W);
+  for(let px=0;px<W;px++){
+    const f=fMin+(px/W)*(fMax-fMin);
+    let a=0;
+    for(const b of bands){
+      if(f>=b.start&&f<=b.end) a+=Math.pow(10,(b.gain||0)/20);
+    }
+    amps[px]=a;
+  }
+  let maxA=0;for(let i=0;i<W;i++)maxA=Math.max(maxA,amps[i]);
+  if(!maxA){canvas.style.display='none';return;}
+
+  const PT=10,PB=18,drawH=H-PT-PB;
+
+  // Background
+  ctx.fillStyle='#111827';ctx.fillRect(0,0,W,H);
+
+  // Filled area
+  const grad=ctx.createLinearGradient(0,PT,0,PT+drawH);
+  grad.addColorStop(0,'rgba(96,165,250,0.85)');
+  grad.addColorStop(1,'rgba(29,78,216,0.2)');
+  ctx.fillStyle=grad;
+  ctx.beginPath();ctx.moveTo(0,PT+drawH);
+  for(let px=0;px<W;px++) ctx.lineTo(px,PT+drawH-(amps[px]/maxA)*drawH);
+  ctx.lineTo(W-1,PT+drawH);ctx.closePath();ctx.fill();
+
+  // Line
+  ctx.strokeStyle='#93c5fd';ctx.lineWidth=1.5;ctx.beginPath();
+  for(let px=0;px<W;px++){
+    const y=PT+drawH-(amps[px]/maxA)*drawH;
+    px===0?ctx.moveTo(px,y):ctx.lineTo(px,y);
+  }
+  ctx.stroke();
+
+  // Frequency tick labels
+  ctx.fillStyle='#6b7280';ctx.font='9px Arial';ctx.textAlign='center';
+  for(const f of [200,500,1000,2000,4000,8000,16000]){
+    if(f<=fMin||f>=fMax)continue;
+    const x=freqToX(f);
+    ctx.fillStyle='#374151';ctx.beginPath();ctx.moveTo(x,PT+drawH);ctx.lineTo(x,PT+drawH+3);ctx.stroke();
+    ctx.fillStyle='#6b7280';
+    ctx.fillText(f>=1000?(f/1000)+'k':f,x,H-3);
+  }
+}
+
+// =============================================================
 // Config display
 // =============================================================
 let allPresets=[],openEditIdx=-1,currentCfg=null;
@@ -364,6 +431,7 @@ function setCfg(c){
       '<div><span style="font-size:.83em;color:#555;font-weight:bold">Silence</span><br><b>'+c.silence_ms+'</b> <span style="font-size:.82em;color:#888">ms</span></div>'+
       '<div><span style="font-size:.83em;color:#555;font-weight:bold">Session</span><br><b>'+c.session_min+'</b> <span style="font-size:.82em;color:#888">min</span></div>'+
     '</div>';
+  drawSpectrum(bands);
   tryMatchPreset();
 }
 
