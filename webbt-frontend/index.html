@@ -46,7 +46,11 @@ details.cpanel .cpanel-body{padding-top:.7em;border-top:1px solid #eee;margin-to
     <button class="btn dg" onclick="bleDisconnect()" id="btn-disconnect" style="display:none">Disconnect</button>
   </div>
   <hr>
-  <p>Audio: <span id="badge" class="badge off">Stopped</span> &nbsp;<span id="elapsed" style="font-size:.9em;color:#888;font-variant-numeric:tabular-nums"></span></p>
+  <div style="display:flex;align-items:center;gap:.6em;margin-bottom:.5em">
+    <span>Audio: <span id="badge" class="badge off">Stopped</span></span>
+    <span id="elapsed" style="font-size:.9em;color:#888;font-variant-numeric:tabular-nums"></span>
+    <button class="btn g" id="btn-audio" onclick="audioToggle()" disabled style="flex:0 0 auto;padding:.4em .9em;min-width:90px;margin-left:auto">&#9654; Start</button>
+  </div>
   <h3>Current Preset</h3>
   <select id="preset-select" onchange="loadSelectedPreset()" disabled>
     <option value="">-- Select a preset --</option>
@@ -54,9 +58,6 @@ details.cpanel .cpanel-body{padding-top:.7em;border-top:1px solid #eee;margin-to
   <canvas id="spectrum-canvas" style="display:none;width:100%;border-radius:6px;margin-top:.6em" height="110"></canvas>
   <div id="cfg-display" style="margin-top:.7em"><em style="color:#bbb;font-size:.9em">Connect to see configuration</em></div>
   <p class="msg" id="cm"></p>
-  <div class="row" style="margin-top:.5em">
-    <button class="btn g" id="btn-audio" onclick="audioToggle()" disabled>&#9654; Start</button>
-  </div>
 </div>
 
 
