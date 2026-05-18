@@ -55,9 +55,9 @@ details.cpanel .cpanel-body{padding-top:.7em;border-top:1px solid #eee;margin-to
   <select id="preset-select" onchange="loadSelectedPreset()" disabled>
     <option value="">-- Select a preset --</option>
   </select>
+  <p class="msg" id="cm"></p>
   <canvas id="spectrum-canvas" style="display:none;width:100%;border-radius:6px;margin-top:.6em" height="110"></canvas>
   <div id="cfg-display" style="margin-top:.7em"><em style="color:#bbb;font-size:.9em">Connect to see configuration</em></div>
-  <p class="msg" id="cm"></p>
 </div>
 
 
@@ -142,7 +142,10 @@ function onNotify(event){
   while((nl=rxBuf.indexOf('\n'))>=0){
     const line=rxBuf.slice(0,nl).trim(); rxBuf=rxBuf.slice(nl+1);
     if(!line)continue;
-    try{const p=JSON.parse(line);if(p.event==='session_end'){applyState('idle');stopTimer();continue;}}catch(e){}
+    try{const p=JSON.parse(line);
+      if(p.event==='session_end'){applyState('idle');stopTimer();continue;}
+      if(p.event==='regen_done'){applyState(uiState);continue;}
+    }catch(e){}
     if(pendingResolve){const res=pendingResolve;pendingResolve=null;res(line);}
   }
 }
@@ -172,8 +175,8 @@ async function bleConnect(){
     await renderPresets();
     const s=await cmd('status');
     if(s.config)setCfg(s.config);
+    if(s.preset_name)$('preset-select').value=s.preset_name;
     if(s.running){applyState('playing');startTimer(s.elapsed_sec||0);}
-    tryMatchPreset();
   }catch(e){msg('cm','Connect failed: '+e.message,4000);}
 }
 
@@ -333,7 +336,7 @@ function drawSpectrum(bands){
   let fMin=Infinity,fMax=-Infinity;
   for(const b of bands){fMin=Math.min(fMin,b.start);fMax=Math.max(fMax,b.end);}
   const pad=(fMax-fMin)*0.1||100;
-  fMin=Math.max(0,fMin-pad); fMax=fMax+pad;
+  fMin=0; fMax=fMax+pad;
 
   // Linear-scale x mapping
   const freqToX=f=>(f-fMin)/(fMax-fMin)*W;
@@ -373,10 +376,12 @@ function drawSpectrum(bands){
   }
   ctx.stroke();
 
-  // Frequency tick labels
+  // Frequency tick labels — evenly spaced, always starting at 0
+  const niceSteps=[100,200,500,1000,2000,5000,10000];
+  const targetTicks=6;
+  let step=niceSteps.find(s=>fMax/s<=targetTicks)||niceSteps[niceSteps.length-1];
   ctx.fillStyle='#6b7280';ctx.font='9px Arial';ctx.textAlign='center';
-  for(const f of [200,500,1000,2000,4000,8000,16000]){
-    if(f<=fMin||f>=fMax)continue;
+  for(let f=0;f<=fMax;f+=step){
     const x=freqToX(f);
     ctx.fillStyle='#374151';ctx.beginPath();ctx.moveTo(x,PT+drawH);ctx.lineTo(x,PT+drawH+3);ctx.stroke();
     ctx.fillStyle='#6b7280';
@@ -390,18 +395,6 @@ function drawSpectrum(bands){
 let allPresets=[],openEditIdx=-1,currentCfg=null;
 const esc=s=>String(s).replace(/['"<>&]/g,c=>({'\'':'&#39;','"':'&quot;','<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
 
-function tryMatchPreset(){
-  if(!currentCfg||!allPresets.length)return;
-  const cb=currentCfg.bands||[],sel=$('preset-select');
-  for(const p of allPresets){
-    const pb=p.bands||[];
-    if(pb.length!==cb.length)continue;
-    if(p.pulse_delay!==currentCfg.pulse_delay||p.duration_ms!==currentCfg.duration_ms||
-       p.silence_ms!==currentCfg.silence_ms||p.session_min!==currentCfg.session_min)continue;
-    if(pb.every((b,i)=>b.start===cb[i].start&&b.end===cb[i].end&&(b.rolloff||0)===(cb[i].rolloff||0))){sel.value=p.name;return;}
-  }
-  sel.value='';
-}
 
 function setCfg(c){
   currentCfg=c;
@@ -433,7 +426,6 @@ function setCfg(c){
       '<div><span style="font-size:.83em;color:#555;font-weight:bold">Session</span><br><b>'+c.session_min+'</b> <span style="font-size:.82em;color:#888">min</span></div>'+
     '</div>';
   drawSpectrum(bands);
-  tryMatchPreset();
 }
 
 
@@ -445,11 +437,13 @@ async function loadSelectedPreset(){
   if(!name){
     $('cfg-display').innerHTML='';
     $('btn-audio').disabled=true;
+    drawSpectrum([]);
     return;
   }
   try{
+    const ab=$('btn-audio');ab.disabled=true;ab.textContent='⏳ Regenerating…';ab.className='btn dg';
     const d=await cmd('load_preset',{name});
-    if(d.config){setCfg(d.config);$('btn-audio').disabled=false;}
+    if(d.config){setCfg(d.config);$('preset-select').value=name;}
     msg('cm','Loaded "'+name+'"');
   }catch(e){msg('cm','Error: '+e.message);}
 }
@@ -464,7 +458,6 @@ async function renderPresets(){
     openEditIdx=-1;
     $('preset-select').innerHTML='<option value="">-- Select a preset --</option>'+
       allPresets.map(p=>'<option value="'+esc(p.name)+'">'+esc(p.name)+' ('+(p.bands||[]).length+' bands)</option>').join('');
-    tryMatchPreset();
     const el=$('pl');
     if(!allPresets.length){el.innerHTML='<em style="color:#bbb;font-size:.9em">No presets saved</em>';return;}
     el.innerHTML=allPresets.map((p,i)=>
