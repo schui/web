@@ -274,8 +274,8 @@ async function audioToggle(){
 // =============================================================
 // Band table helpers
 // =============================================================
-function makeRow(s,e,r,tbodyId,db){
-  s=s!=null?s:''; e=e!=null?e:''; r=r!=null?r:''; db=db!=null?db:'';
+function makeRow(s,e,sl,sh,tbodyId,db){
+  s=s!=null?s:''; e=e!=null?e:''; sl=sl!=null?sl:''; sh=sh!=null?sh:''; db=db!=null?db:'';
   const centre=(s!==''&&e!=='')?Math.round((+s+ +e)/2):'';
   const tid="'"+tbodyId+"'";
   const tr=document.createElement('tr');
@@ -286,14 +286,15 @@ function makeRow(s,e,r,tbodyId,db){
     '</div></td>'+
     '<td><input type="number" value="'+s+'" min="20" max="22000" oninput="updRow(this)"></td>'+
     '<td><input type="number" value="'+e+'" min="20" max="22000" oninput="updRow(this)"></td>'+
-    '<td><input type="number" value="'+r+'" min="0" max="5000" placeholder="0"></td>'+
+    '<td><input type="number" value="'+sl+'" min="0" max="5000" placeholder="0"></td>'+
+    '<td><input type="number" value="'+sh+'" min="0" max="5000" placeholder="0"></td>'+
     '<td><input type="number" value="'+db+'" min="-40" max="40" step="0.5" placeholder="0"></td>'+
     '<td class="cc" style="color:#888">'+centre+'</td>'+
     '<td><button class="sm r" onclick="this.closest(\'tr\').remove()">&times;</button></td>';
   return tr;
 }
 
-function addRow(s,e,r,tbodyId,db){$(tbodyId).appendChild(makeRow(s,e,r,tbodyId,db));}
+function addRow(s,e,sl,sh,tbodyId,db){$(tbodyId).appendChild(makeRow(s,e,sl,sh,tbodyId,db));}
 
 function moveRow(btn,dir){
   const tr=btn.closest('tr'),tbody=tr.parentNode;
@@ -308,16 +309,16 @@ function updRow(inp){
 
 function makeBandTable(tbodyId){
   return '<table><thead><tr>'+
-    '<th style="width:1.8em"></th><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Rolloff&nbsp;Hz</th><th>Gain</th><th>Centre</th><th></th>'+
+    '<th style="width:1.8em"></th><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Skirt&nbsp;Lo&nbsp;Hz</th><th>Skirt&nbsp;Hi&nbsp;Hz</th><th>Gain</th><th>Centre</th><th></th>'+
     '</tr></thead><tbody id="'+tbodyId+'"></tbody></table>'+
-    '<button class="btn dg sm" style="margin-top:.4em" onclick="addRow(null,null,null,\''+tbodyId+'\',null)">+ Add Band</button>';
+    '<button class="btn dg sm" style="margin-top:.4em" onclick="addRow(null,null,null,null,\''+tbodyId+'\',null)">+ Add Band</button>';
 }
 
 function readBands(tbodyId){
   const bands=[];
   $(tbodyId).querySelectorAll('tr').forEach(r=>{
-    const i=r.querySelectorAll('input'),s=+i[0].value,e=+i[1].value,ro=+i[2].value||0,db=+i[3].value||0;
-    if(s>0&&e>s){const b={start:s,end:e};if(ro>0)b.rolloff=ro;if(db!==0)b.gain=db;bands.push(b);}
+    const i=r.querySelectorAll('input'),s=+i[0].value,e=+i[1].value,sl=+i[2].value||0,sh=+i[3].value||0,db=+i[4].value||0;
+    if(s>0&&e>s){const b={start:s,end:e};if(sl>0)b.skirt_lo=sl;if(sh>0)b.skirt_hi=sh;if(db!==0)b.gain=db;bands.push(b);}
   });
   return bands;
 }
@@ -405,18 +406,18 @@ function setCfg(c){
     const g=b.gain||0;
     if(!gainMap[g])gainMap[g]={flat:0,roll:0};
     gainMap[g].flat+=b.end-b.start;
-    gainMap[g].roll+=2*(b.rolloff||0);
+    gainMap[g].roll+=(b.skirt_lo||0)+(b.skirt_hi||0);
   });
   const gainLevels=Object.keys(gainMap).map(Number).sort((a,b)=>b-a);
   const widthHtml=gainLevels.length?
     '<table style="margin:.4em 0 .2em"><thead><tr>'+
-      '<th>Gain</th><th>Flattop&nbsp;Width</th><th>Rolloff&nbsp;Width</th>'+
+      '<th>Gain</th><th>Flattop&nbsp;Width</th><th>Skirt&nbsp;Width</th>'+
     '</tr></thead><tbody>'+
     gainLevels.map(g=>'<tr><td><b>'+g+'&nbsp;dB</b></td><td>'+gainMap[g].flat+'&nbsp;Hz</td><td>'+gainMap[g].roll+'&nbsp;Hz</td></tr>').join('')+
     '</tbody></table>':'';
   $('cfg-display').innerHTML=
-    '<table><thead><tr><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Rolloff&nbsp;Hz</th><th>Gain</th><th>Centre</th></tr></thead><tbody>'+
-    bands.map(b=>'<tr><td>'+b.start+'</td><td>'+b.end+'</td><td>'+(b.rolloff||0)+'</td><td>'+(b.gain||0)+'</td><td style="color:#888">'+Math.round((b.start+b.end)/2)+'</td></tr>').join('')+
+    '<table><thead><tr><th>Start&nbsp;Hz</th><th>End&nbsp;Hz</th><th>Skirt&nbsp;Lo&nbsp;Hz</th><th>Skirt&nbsp;Hi&nbsp;Hz</th><th>Gain</th><th>Centre</th></tr></thead><tbody>'+
+    bands.map(b=>'<tr><td>'+b.start+'</td><td>'+b.end+'</td><td>'+(b.skirt_lo||0)+'</td><td>'+(b.skirt_hi||0)+'</td><td>'+(b.gain||0)+'</td><td style="color:#888">'+Math.round((b.start+b.end)/2)+'</td></tr>').join('')+
     '</tbody></table>'+
     widthHtml+
     '<div class="g2" style="margin-top:.5em">'+
@@ -497,7 +498,7 @@ function toggleEdit(i){
   const p=allPresets[i];
   $('ep-'+i).style.display='';$('eb-'+i).textContent='Close';
   const tid='ebt'+i; $(tid).innerHTML='';
-  (p.bands||[]).forEach(b=>addRow(b.start,b.end,b.rolloff,tid,b.gain));
+  (p.bands||[]).forEach(b=>addRow(b.start,b.end,b.skirt_lo,b.skirt_hi,tid,b.gain));
   $('epd'+i).value=p.pulse_delay;$('edm'+i).value=p.duration_ms;
   $('esi'+i).value=p.silence_ms;$('ese'+i).value=p.session_min;
 }
@@ -609,7 +610,7 @@ function whSave(){
 
 function whPayload(eventType){
   const cfg=currentCfg||{};
-  const freqs=(cfg.bands||[]).map(b=>b.start+'-'+b.end+(b.rolloff?' r:'+b.rolloff:'')+' Hz').join(', ');
+  const freqs=(cfg.bands||[]).map(b=>b.start+'-'+b.end+((b.skirt_lo||b.skirt_hi)?' s:'+(b.skirt_lo||0)+'/'+(b.skirt_hi||0):'')+' Hz').join(', ');
   return{
     timestamp:(()=>{const d=new Date();const pad=n=>String(n).padStart(2,'0');const h=d.getHours();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(h%12||12)+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())+' '+(h<12?'AM':'PM');})(),
     event:eventType,
