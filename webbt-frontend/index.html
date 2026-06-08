@@ -57,6 +57,7 @@ details.cpanel .cpanel-body{padding-top:.7em;border-top:1px solid #eee;margin-to
   </select>
   <p class="msg" id="cm"></p>
   <canvas id="spectrum-canvas" style="display:none;width:100%;border-radius:6px;margin-top:.6em" height="110"></canvas>
+  <div id="overlap-warn" style="display:none;margin-top:.4em;padding:.35em .6em;background:#fff3cd;border:1px solid #ffc107;border-radius:5px;font-size:.82em;color:#856404"></div>
   <div id="cfg-display" style="margin-top:.7em"><em style="color:#bbb;font-size:.9em">Connect to see configuration</em></div>
 </div>
 
@@ -423,6 +424,23 @@ function setCfg(c){
       '<div><span style="font-size:.83em;color:#555;font-weight:bold">Session</span><br><b>'+c.session_min+'</b> <span style="font-size:.82em;color:#888">min</span></div>'+
     '</div>';
   drawSpectrum(bands);
+
+  // Overlap check: touching at a single point (a.end === b.start) is NOT overlap
+  const valid=bands.filter(b=>b.start>0&&b.end>b.start);
+  const overlaps=[];
+  for(let i=0;i<valid.length;i++)
+    for(let j=i+1;j<valid.length;j++){
+      const a=valid[i],b=valid[j];
+      if(a.start<b.end&&b.start<a.end)
+        overlaps.push(Math.max(a.start,b.start)+'–'+Math.min(a.end,b.end)+' Hz');
+    }
+  const ow=$('overlap-warn');
+  if(overlaps.length){
+    ow.style.display='';
+    ow.textContent='⚠️ Overlapping frequency ranges: '+overlaps.join(', ');
+  }else{
+    ow.style.display='none';
+  }
 }
 
 
