@@ -331,26 +331,54 @@ function drawSpectrum(bands){
   const W=canvas.width=canvas.offsetWidth||520,H=canvas.height=110;
   const ctx=canvas.getContext('2d');
 
-  // Frequency range with padding
-  let fMin=Infinity,fMax=-Infinity;
-  for(const b of bands){fMin=Math.min(fMin,b.start);fMax=Math.max(fMax,b.end);}
-  const pad=(fMax-fMin)*0.1||100;
-  fMin=0; fMax=fMax+pad;
+  const SKIRT=100;
 
-  // Linear-scale x mapping
+  // Flat-top gain: what was configured — no tapers, 0 outside bands
+  function flatGain(freq){
+    let g=0;
+    for(const b of bands)
+      if(freq>=b.start&&freq<=b.end) g=Math.max(g,Math.pow(10,(b.gain||0)/20));
+    return g;
+  }
+
+  // Tapered gain: port of firmware filterGain() — actual sound
+  function taperedGain(freq){
+    let leftEnd=-1e9,rightStart=1e9,leftGain=0,rightGain=0,hasLeft=false,hasRight=false;
+    for(const b of bands){
+      const g=Math.pow(10,(b.gain||0)/20);
+      if(freq>=b.start&&freq<=b.end) return g;
+      if(b.end<=freq&&b.end>leftEnd){leftEnd=b.end;leftGain=g;hasLeft=true;}
+      if(b.start>freq&&b.start<rightStart){rightStart=b.start;rightGain=g;hasRight=true;}
+    }
+    const gap=rightStart-leftEnd;
+    if(gap<=2*SKIRT){
+      const t=(freq-leftEnd)/gap;
+      return leftGain+0.5*(1-Math.cos(Math.PI*t))*(rightGain-leftGain);
+    }
+    let g=0;
+    if(hasLeft &&freq-leftEnd   <SKIRT) g=Math.max(g,0.5*(1+Math.cos(Math.PI*(freq-leftEnd)   /SKIRT))*leftGain);
+    if(hasRight&&rightStart-freq<SKIRT) g=Math.max(g,0.5*(1+Math.cos(Math.PI*(rightStart-freq) /SKIRT))*rightGain);
+    return g;
+  }
+
+  // Frequency range
+  let fMax=-Infinity;
+  for(const b of bands) fMax=Math.max(fMax,b.end);
+  const fMin=0;
+  fMax=fMax+Math.max(fMax*0.05,200);
+
   const freqToX=f=>(f-fMin)/(fMax-fMin)*W;
 
-  // Compute amplitude at each pixel (flat top only, no rolloff)
-  const amps=new Float32Array(W);
+  // Sample both curves at every pixel
+  const flatAmps=new Float32Array(W), tapAmps=new Float32Array(W);
   for(let px=0;px<W;px++){
     const f=fMin+(px/W)*(fMax-fMin);
-    let a=0;
-    for(const b of bands){
-      if(f>=b.start&&f<=b.end) a+=Math.pow(10,(b.gain||0)/20);
-    }
-    amps[px]=a;
+    flatAmps[px]=flatGain(f);
+    tapAmps[px]=taperedGain(f);
   }
-  let maxA=0;for(let i=0;i<W;i++)maxA=Math.max(maxA,amps[i]);
+  // Normalize both by the same reference so relative heights are meaningful
+  let maxA=0;
+  for(let i=0;i<W;i++) maxA=Math.max(maxA,tapAmps[i],flatAmps[i]);
   if(!maxA){canvas.style.display='none';return;}
 
   const PT=10,PB=18,drawH=H-PT-PB;
@@ -358,33 +386,46 @@ function drawSpectrum(bands){
   // Background
   ctx.fillStyle='#111827';ctx.fillRect(0,0,W,H);
 
-  // Filled area
-  const grad=ctx.createLinearGradient(0,PT,0,PT+drawH);
-  grad.addColorStop(0,'rgba(96,165,250,0.85)');
-  grad.addColorStop(1,'rgba(29,78,216,0.2)');
-  ctx.fillStyle=grad;
+  // --- Layer 1: configured flat-top bands (amber) ---
+  ctx.fillStyle='rgba(251,191,36,0.18)';
   ctx.beginPath();ctx.moveTo(0,PT+drawH);
-  for(let px=0;px<W;px++) ctx.lineTo(px,PT+drawH-(amps[px]/maxA)*drawH);
+  for(let px=0;px<W;px++) ctx.lineTo(px,PT+drawH-(flatAmps[px]/maxA)*drawH);
   ctx.lineTo(W-1,PT+drawH);ctx.closePath();ctx.fill();
 
-  // Line
-  ctx.strokeStyle='#93c5fd';ctx.lineWidth=1.5;ctx.beginPath();
+  ctx.strokeStyle='rgba(251,191,36,0.55)';ctx.lineWidth=1;ctx.beginPath();
   for(let px=0;px<W;px++){
-    const y=PT+drawH-(amps[px]/maxA)*drawH;
+    const y=PT+drawH-(flatAmps[px]/maxA)*drawH;
     px===0?ctx.moveTo(px,y):ctx.lineTo(px,y);
   }
   ctx.stroke();
 
-  // Frequency tick labels — evenly spaced, always starting at 0
-  const niceSteps=[100,200,500,1000,2000,5000,10000];
-  const targetTicks=6;
-  let step=niceSteps.find(s=>fMax/s<=targetTicks)||niceSteps[niceSteps.length-1];
-  ctx.fillStyle='#6b7280';ctx.font='9px Arial';ctx.textAlign='center';
-  for(let f=0;f<=fMax;f+=step){
+  // --- Layer 2: tapered actual sound (blue) ---
+  const grad=ctx.createLinearGradient(0,PT,0,PT+drawH);
+  grad.addColorStop(0,'rgba(96,165,250,0.75)');
+  grad.addColorStop(1,'rgba(29,78,216,0.15)');
+  ctx.fillStyle=grad;
+  ctx.beginPath();ctx.moveTo(0,PT+drawH);
+  for(let px=0;px<W;px++) ctx.lineTo(px,PT+drawH-(tapAmps[px]/maxA)*drawH);
+  ctx.lineTo(W-1,PT+drawH);ctx.closePath();ctx.fill();
+
+  ctx.strokeStyle='#93c5fd';ctx.lineWidth=1.5;ctx.beginPath();
+  for(let px=0;px<W;px++){
+    const y=PT+drawH-(tapAmps[px]/maxA)*drawH;
+    px===0?ctx.moveTo(px,y):ctx.lineTo(px,y);
+  }
+  ctx.stroke();
+
+  // --- Tick marks at 2/4/6/8/10/12/14 kHz ---
+  ctx.font='9px Arial';ctx.textAlign='center';
+  for(const f of [2000,4000,6000,8000,10000,12000,14000]){
+    if(f>=fMax) continue;
     const x=freqToX(f);
-    ctx.fillStyle='#374151';ctx.beginPath();ctx.moveTo(x,PT+drawH);ctx.lineTo(x,PT+drawH+3);ctx.stroke();
-    ctx.fillStyle='#6b7280';
-    ctx.fillText(f>=1000?(f/1000)+'k':f,x,H-3);
+    ctx.strokeStyle='#374151';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x,PT);ctx.lineTo(x,PT+drawH);ctx.stroke();
+    ctx.strokeStyle='#4b5563';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x,PT+drawH);ctx.lineTo(x,PT+drawH+3);ctx.stroke();
+    ctx.fillStyle='#9ca3af';
+    ctx.fillText(f/1000+'k',x,H-3);
   }
 }
 
