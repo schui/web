@@ -154,12 +154,16 @@ function onNotify(event){
 async function bleRaw(obj){
   if(!rxChar)throw new Error('Not connected');
   const text=JSON.stringify(obj)+'\n',CHUNK=180;
-  for(let i=0;i<text.length;i+=CHUNK)
-    await rxChar.writeValue(new TextEncoder().encode(text.slice(i,i+CHUNK)));
-  return new Promise((res,rej)=>{
+  // Register the response listener BEFORE writing, so a fast device reply
+  // can't land in onNotify() while pendingResolve is still null (which would
+  // drop the line and make this command time out).
+  const p=new Promise((res,rej)=>{
     pendingResolve=res;
     setTimeout(()=>{pendingResolve=null;rej(new Error('BLE timeout'));},8000);
   });
+  for(let i=0;i<text.length;i+=CHUNK)
+    await rxChar.writeValue(new TextEncoder().encode(text.slice(i,i+CHUNK)));
+  return p;
 }
 
 async function bleConnect(){
