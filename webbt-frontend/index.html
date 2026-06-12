@@ -13,7 +13,7 @@ h2{margin-bottom:.5em}h3{font-size:.97em;color:#333;margin:.6em 0 .4em}
 .btn:disabled{opacity:.4;cursor:default}
 .sm{padding:.3em .7em;font-size:.82em;border:none;border-radius:4px;cursor:pointer;color:#fff}
 .badge{display:inline-block;padding:.2em .75em;border-radius:10px;font-weight:bold;font-size:.9em}
-.on{background:#d4edda;color:#1a5c2a}.off{background:#f8d7da;color:#721c24}
+.on{background:#d4edda;color:#1a5c2a}.off{background:#f8d7da;color:#721c24}.pause{background:#fff3cd;color:#856404}
 .ble-on{background:#e3f2fd;color:#0d47a1}.ble-off{background:#fce4ec;color:#880e4f}
 label{font-size:.83em;color:#555;font-weight:bold;margin-top:.5em;display:block}
 input,select{width:100%;padding:.38em .55em;border:1px solid #ccc;border-radius:4px;font-size:.93em;margin-top:.1em}
@@ -49,7 +49,10 @@ details.cpanel .cpanel-body{padding-top:.7em;border-top:1px solid #eee;margin-to
   <div style="display:flex;align-items:center;gap:.6em;margin-bottom:.5em">
     <span>Audio: <span id="badge" class="badge off">Stopped</span></span>
     <span id="elapsed" style="font-size:.9em;color:#888;font-variant-numeric:tabular-nums"></span>
-    <button class="btn g" id="btn-audio" onclick="audioToggle()" disabled style="flex:0 0 auto;padding:.4em .9em;min-width:90px;margin-left:auto">&#9654; Start</button>
+    <span style="margin-left:auto;display:flex;gap:.4em">
+      <button class="btn g" id="btn-audio" onclick="audioPrimary()" disabled style="flex:0 0 auto;padding:.4em .9em;min-width:90px">&#9654; Start</button>
+      <button class="btn r" id="btn-stop" onclick="audioStop()" style="flex:0 0 auto;padding:.4em .9em;min-width:70px;display:none">&#9632; Stop</button>
+    </span>
   </div>
   <h3>Current Preset</h3>
   <select id="preset-select" onchange="loadSelectedPreset()" disabled>
@@ -182,6 +185,7 @@ async function bleConnect(){
     if(s.config)setCfg(s.config);
     if(s.preset_name)$('preset-select').value=s.preset_name;
     if(s.running){applyState('playing');startTimer(s.elapsed_sec||0);}
+    else if(s.paused){applyState('paused');pauseTimer(s.elapsed_sec||0);}
   }catch(e){msg('cm','Connect failed: '+e.message,4000);}
 }
 
@@ -203,17 +207,23 @@ async function cmdText(name){
 }
 
 // =============================================================
-// State machine   'disconnected' | 'idle' | 'playing'
+// State machine   'disconnected' | 'idle' | 'playing' | 'paused'
 // =============================================================
 let uiState='disconnected';
 
 function applyState(state){
   uiState=state;
-  const D=state==='disconnected',I=state==='idle',P=state==='playing';
-  $('badge').textContent=P?'Running':'Stopped';
-  $('badge').className='badge '+(P?'on':'off');
+  const D=state==='disconnected',I=state==='idle',P=state==='playing',PA=state==='paused';
+  const active=P||PA;                      // a session exists (running or paused)
+  $('badge').textContent=P?'Running':PA?'Paused':'Stopped';
+  $('badge').className='badge '+(P?'on':PA?'pause':'off');
+  // Primary button: Start (idle) / Pause (running) / Resume (paused)
   const ab=$('btn-audio');
-  ab.disabled=D; ab.textContent=P?'\u25a0 Stop':'\u25b6 Start'; ab.className='btn '+(P?'r':'g');
+  ab.disabled=D;
+  ab.textContent=P?'\u23f8 Pause':'\u25b6 '+(PA?'Resume':'Start');
+  ab.className='btn '+(P?'dg':'g');
+  // Stop button only shown while a session is active
+  $('btn-stop').style.display=active?'':'none';
   $('preset-select').disabled=!I;
   $('btn-new-pre').disabled=!I;
   $('btn-exp-all').disabled=D;
@@ -237,42 +247,68 @@ function msg(id,text,ms=3000){$(id).textContent=text;if(ms)setTimeout(()=>$(id).
 // =============================================================
 // Elapsed timer + session-end poll
 // =============================================================
-let _timerStart=null,_timerTick=null,_pollTick=null;
+let _timerStart=null,_timerTick=null,_pollTick=null,_pausedElapsed=0;
 const _fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+const _total=()=>currentCfg&&currentCfg.session_min?currentCfg.session_min*60:0;
 
 function startTimer(elapsedSec=0){
   _timerStart=Date.now()-elapsedSec*1000;
   clearInterval(_timerTick);
   _timerTick=setInterval(()=>{
     const t=Math.floor((Date.now()-_timerStart)/1000);
-    const total=currentCfg&&currentCfg.session_min?currentCfg.session_min*60:0;
+    const total=_total();
     $('elapsed').textContent=_fmt(t)+(total?' / '+_fmt(total):'');
   },1000);
   clearInterval(_pollTick);
   _pollTick=setInterval(async()=>{
     if(!rxChar||pendingResolve)return;
-    try{const s=await cmd('status');if(!s.running){applyState('idle');stopTimer();}}
+    try{const s=await cmd('status');if(!s.running&&!s.paused){applyState('idle');stopTimer();}}
     catch(e){if(!bleDevice||!bleDevice.gatt.connected){rxChar=null;applyState('disconnected');stopTimer();}}
   },10000);
+}
+
+// Freeze the clock at the current elapsed and stop ticking/polling.
+function pauseTimer(elapsedSec){
+  _pausedElapsed=elapsedSec!=null?elapsedSec
+    :(_timerStart!=null?Math.floor((Date.now()-_timerStart)/1000):_pausedElapsed);
+  clearInterval(_timerTick);_timerTick=null;_timerStart=null;
+  clearInterval(_pollTick);_pollTick=null;
+  renderPaused();
+}
+
+function renderPaused(){
+  const total=_total();
+  $('elapsed').textContent=_fmt(_pausedElapsed)+(total?' / '+_fmt(total):'')+' (paused)';
 }
 
 function stopTimer(){
   clearInterval(_timerTick);_timerTick=null;_timerStart=null;
   clearInterval(_pollTick);_pollTick=null;
+  _pausedElapsed=0;
   $('elapsed').textContent='';
 }
 
 // =============================================================
 // Audio toggle
 // =============================================================
-async function audioToggle(){
-  const action=uiState==='playing'?'stop':'start';
+// Primary button: Start (idle) → Pause (running) → Resume (paused)
+async function audioPrimary(){
+  const action=uiState==='idle'?'start':uiState==='playing'?'pause':uiState==='paused'?'resume':null;
+  if(!action)return;
   const btn=$('btn-audio');btn.disabled=true;
   try{
     const r=await cmd(action);
     if(action==='start'){applyState('playing');startTimer(r.elapsed_sec||0);whFire('session_start');}
-    else{applyState('idle');stopTimer();}
+    else if(action==='pause'){pauseTimer();applyState('paused');}
+    else if(action==='resume'){applyState('playing');startTimer(_pausedElapsed);}
   }catch(e){msg('cm','Error: '+e.message);}
+  finally{btn.disabled=false;}
+}
+
+async function audioStop(){
+  const btn=$('btn-stop');btn.disabled=true;
+  try{await cmd('stop');applyState('idle');stopTimer();}
+  catch(e){msg('cm','Error: '+e.message);}
   finally{btn.disabled=false;}
 }
 
