@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Background Audio</title>
+<style>
+  :root {
+    --bg: #11131a;
+    --card: #1c1f2b;
+    --accent: #6c8cff;
+    --text: #e8eaf2;
+    --muted: #8b90a6;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    width: 100%; max-width: 380px;
+    background: var(--card);
+    border-radius: 24px;
+    padding: 28px 24px 32px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; text-align: center; }
+  .sub { color: var(--muted); font-size: 13px; text-align: center; margin: 0 0 24px; }
+
+  .seg {
+    display: flex; background: #131620; border-radius: 14px;
+    padding: 4px; margin-bottom: 26px;
+  }
+  .seg button {
+    flex: 1; border: 0; background: transparent; color: var(--muted);
+    font-size: 15px; font-weight: 600; padding: 12px 0;
+    border-radius: 11px; cursor: pointer; transition: .15s;
+  }
+  .seg button.active { background: var(--accent); color: #fff; }
+
+  .vol-wrap { margin-bottom: 28px; }
+  .vol-label {
+    display: flex; justify-content: space-between;
+    font-size: 13px; color: var(--muted); margin-bottom: 10px;
+  }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 8px; border-radius: 4px;
+    background: #2a2f40; outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,.4);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); border: 0; cursor: pointer;
+  }
+
+  .play {
+    width: 100%; border: 0; border-radius: 16px;
+    padding: 18px 0; font-size: 18px; font-weight: 700;
+    background: var(--accent); color: #fff; cursor: pointer;
+    transition: .15s;
+  }
+  .play.playing { background: #e05a6b; }
+  .play:active { transform: scale(.98); }
+
+  .db-readout {
+    text-align: center; font-size: 13px; color: var(--muted);
+    margin: 0 0 18px;
+  }
+  .db-readout span {
+    color: var(--text); font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .hint { color: var(--muted); font-size: 11px; text-align: center; margin: 18px 0 0; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Background Audio</h1>
+    <p class="sub">Plays through lock screen on iPhone</p>
+
+    <div class="seg" id="typeSeg">
+      <button data-type="white" class="active">White</button>
+      <button data-type="pink">Pink</button>
+      <button data-type="brown">Brown</button>
+    </div>
+
+    <div class="vol-wrap">
+      <div class="vol-label"><span>Volume</span><span id="volPct">50%</span></div>
+      <input type="range" id="vol" min="0" max="100" value="50">
+    </div>
+
+    <div class="vol-wrap">
+      <div class="vol-label"><span>Fine adjust</span><span id="finePct">100%</span></div>
+      <input type="range" id="fine" min="0" max="100" value="100">
+    </div>
+
+    <div class="db-readout">Output level: <span id="dbVal">—</span></div>
+
+    <button class="play" id="play">Start</button>
+
+    <p class="hint">Tip: lock your phone while it plays. To keep it going indefinitely,
+    leave this tab in the foreground before locking.</p>
+  </div>
+
+<script>
+(function () {
+  // ---- Build looping WAV blobs for each noise type ----
+  // Web Audio's AudioContext is suspended by iOS when the screen locks, so we
+  // instead generate the noise once into a seamless looping WAV and play it
+  // through an <audio> element, which iOS keeps alive in the background.
+
+  const SR = 44100;
+  // Loop length must be a power of two so the brown noise can be synthesized in
+  // the frequency domain (which makes it inherently periodic = seamless loop).
+  // A longer loop means the (unavoidable) native loop seam happens far less
+  // often, so it's much harder to notice — especially on pink noise.
+  const N = 1 << 20;            // 1048576 samples ≈ 23.8 s
+  const SECONDS = N / SR;
+
+  function buildWav(samples, gain) {
+    gain = (gain == null) ? 1 : gain;
+    const n = samples.length;
+    const buf = new ArrayBuffer(44 + n * 2);
+    const v = new DataView(buf);
+    const ws = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE');
+    ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true); v.setUint32(24, SR, true);
+    v.setUint32(28, SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    ws(36, 'data'); v.setUint32(40, n * 2, true);
+    let off = 44;
+    for (let i = 0; i < n; i++) {
+      let s = Math.max(-1, Math.min(1, samples[i] * gain));
+      v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      off += 2;
+    }
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  }
+
+  function genWhite(n) {
+    const a = new Float32Array(n);
+    for (let i = 0; i < n; i++) a[i] = (Math.random() * 2 - 1) * 0.6;
+    return a;
+  }
+
+  // In-place iterative radix-2 inverse FFT (re/im are length n = power of 2).
+  function ifft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = 2 * Math.PI / len;        // +sign => inverse transform
+      const wr = Math.cos(ang), wi = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let k = 0; k < len / 2; k++) {
+          const a = i + k, b = i + k + len / 2;
+          const tr = re[b] * cr - im[b] * ci;
+          const ti = re[b] * ci + im[b] * cr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti;
+          re[a] += tr;        im[a] += ti;
+          const ncr = cr * wr - ci * wi;
+          ci = cr * wi + ci * wr; cr = ncr;
+        }
+      }
+    }
+  }
+
+  // Colored noise via spectral synthesis: random phases with a 1/f^exp
+  // amplitude rolloff. The inverse FFT of a finite spectrum is exactly
+  // periodic, so the loop has no seam — no crossfade needed.
+  //   exp = 0.5 -> pink (-3 dB/oct), exp = 1 -> brown (-6 dB/oct)
+  function genColored(n, exp) {
+    const re = new Float64Array(n), im = new Float64Array(n);
+    for (let k = 1; k < n / 2; k++) {
+      const amp = 1 / Math.pow(k, exp);
+      const phase = Math.random() * 2 * Math.PI;
+      re[k] = amp * Math.cos(phase);
+      im[k] = amp * Math.sin(phase);
+      re[n - k] = re[k];                    // conjugate symmetry => real output
+      im[n - k] = -im[k];
+    }
+    ifft(re, im);
+    let peak = 0;
+    for (let i = 0; i < n; i++) if (Math.abs(re[i]) > peak) peak = Math.abs(re[i]);
+    const g = peak ? 0.9 / peak : 1;
+    const a = new Float32Array(n);
+    for (let i = 0; i < n; i++) a[i] = re[i] * g;
+    return a;
+  }
+
+  // Cache the raw float samples (normalized to ~0.9 peak) so we can rebuild the
+  // WAV at any gain. iOS Safari ignores HTMLAudioElement.volume, so the only
+  // reliable way to control loudness on iPhone is to bake the gain into the
+  // samples here.
+  const samples = {
+    white: genWhite(N),
+    pink: genColored(N, 0.5),
+    brown: genColored(N, 1)
+  };
+
+  // Peak amplitude of each noise type (before gain), used for the dB readout.
+  const peaks = {};
+  for (const t in samples) {
+    let p = 0;
+    const a = samples[t];
+    for (let i = 0; i < a.length; i++) { const v = Math.abs(a[i]); if (v > p) p = v; }
+    peaks[t] = p;
+  }
+
+  // Safety ceiling: even at Volume 100 / Fine 100 the output peaks at this
+  // fraction of full scale. A web page can't read or block the iPhone's
+  // hardware volume buttons, so this is the only defense against it playing
+  // loud — the lower this is, the softer it stays even with the phone cranked
+  // all the way up. Raise toward ~0.30 if you ever need more headroom.
+  const MAX_GAIN = 0.15;
+
+  // ---- Saved preferences ----
+  const PREFS = 'bgnoise.prefs';
+  function loadPrefs() {
+    try { return JSON.parse(localStorage.getItem(PREFS)) || {}; }
+    catch (e) { return {}; }
+  }
+  function savePrefs() {
+    try {
+      localStorage.setItem(PREFS, JSON.stringify({
+        type: currentType, volume: +vol.value, fine: +fine.value
+      }));
+    } catch (e) {}
+  }
+  const prefs = loadPrefs();
+
+  // ---- UI ----
+  const playBtn = document.getElementById('play');
+  const vol = document.getElementById('vol');
+  const volPct = document.getElementById('volPct');
+  const fine = document.getElementById('fine');
+  const finePct = document.getElementById('finePct');
+  const dbVal = document.getElementById('dbVal');
+  const seg = document.getElementById('typeSeg');
+
+  const clamp = (x) => Math.max(0, Math.min(100, x));
+
+  // Restore type, volume & fine
+  let currentType = samples[prefs.type] ? prefs.type : 'white';
+  if (typeof prefs.volume === 'number') vol.value = clamp(prefs.volume);
+  if (typeof prefs.fine === 'number') fine.value = clamp(prefs.fine);
+  volPct.textContent = vol.value + '%';
+  finePct.textContent = fine.value + '%';
+  [...seg.children].forEach(b => b.classList.toggle('active', b.dataset.type === currentType));
+
+  // Perceptual curve: square the coarse volume so most of the slider's travel
+  // sits in the soft range; fine is a gentle linear trim on top.
+  function effGain() {
+    const v = vol.value / 100;
+    const f = fine.value / 100;
+    return MAX_GAIN * v * v * f;
+  }
+
+  // Show the true output peak in dB relative to full scale (0 dBFS = max).
+  function updateDb() {
+    const peak = peaks[currentType] * effGain();
+    if (peak <= 0) {
+      dbVal.textContent = 'muted';
+    } else {
+      dbVal.textContent = (20 * Math.log10(peak)).toFixed(1) + ' dBFS';
+    }
+  }
+
+  // ---- Audio element ----
+  const audio = new Audio();
+  audio.loop = true;
+  audio.preload = 'auto';
+  audio.setAttribute('playsinline', '');
+
+  let currentUrl = null;
+  function rebuild(keepPlaying) {
+    const wasPlaying = keepPlaying && !audio.paused;
+    const url = buildWav(samples[currentType], effGain());
+    audio.src = url;
+    if (currentUrl) URL.revokeObjectURL(currentUrl);
+    currentUrl = url;
+    if (wasPlaying) audio.play();
+  }
+  rebuild(false);
+  updateDb();
+
+  // Debounce rebuilds while dragging so we don't thrash the encoder.
+  let rebuildTimer = null;
+  function scheduleRebuild() {
+    clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(() => rebuild(true), 120);
+  }
+
+  vol.addEventListener('input', () => {
+    volPct.textContent = vol.value + '%';
+    updateDb();
+    savePrefs();
+    scheduleRebuild();
+  });
+
+  fine.addEventListener('input', () => {
+    finePct.textContent = fine.value + '%';
+    updateDb();
+    savePrefs();
+    scheduleRebuild();
+  });
+
+  seg.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const type = btn.dataset.type;
+    if (type === currentType) return;
+    currentType = type;
+    [...seg.children].forEach(b => b.classList.toggle('active', b === btn));
+    rebuild(true);
+    updateDb();
+    savePrefs();
+  });
+
+  function setPlaying(on) {
+    playBtn.textContent = on ? 'Stop' : 'Start';
+    playBtn.classList.toggle('playing', on);
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = on ? 'playing' : 'paused';
+    }
+  }
+
+  playBtn.addEventListener('click', () => {
+    if (audio.paused) {
+      audio.play().then(() => setPlaying(true)).catch(err => {
+        alert('Could not start audio: ' + err.message);
+      });
+    } else {
+      audio.pause();
+      setPlaying(false);
+    }
+  });
+
+  audio.addEventListener('play', () => setPlaying(true));
+  audio.addEventListener('pause', () => setPlaying(false));
+
+  // ---- MediaSession: gives iOS a reason to keep the tab's audio alive,
+  //      and adds lock-screen controls ----
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'Background Audio',
+      artist: 'White / Brown Noise',
+      album: 'Focus'
+    });
+    navigator.mediaSession.setActionHandler('play', () => { audio.play(); });
+    navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); });
+  }
+})();
+</script>
+</body>
+</html>
